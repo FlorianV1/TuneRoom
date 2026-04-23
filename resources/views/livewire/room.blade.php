@@ -483,4 +483,44 @@
         </div>
     @endif
 
+    {{-- ── Playback sync ────────────────────────────────────────────── --}}
+    <script>
+        function syncSpotify(data) {
+            fetch('{{ route('rooms.sync-playback') }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                },
+                body: JSON.stringify(data),
+            })
+                .then(r => r.json())
+                .then(r => console.log('Synced, latency:', r.latency_ms + 'ms'))
+                .catch(console.error);
+        }
+
+        // Direct sync (this user triggered the action)
+        document.addEventListener('livewire:initialized', () => {
+            Livewire.on('spotify-sync', (data) => {
+                syncSpotify(Array.isArray(data) ? data[0] : data);
+            });
+        });
+
+        // Reverb sync (other users in the room)
+        document.addEventListener('DOMContentLoaded', () => {
+            if (typeof Echo === 'undefined') return;
+            Echo.join(`room.{{ $room->id }}`)
+                .listen('.playback.sync', (data) => {
+                    console.log('Reverb sync:', data);
+                    syncSpotify({
+                        room_id: {{ $room->id }},
+                        status: data.status,
+                        track_id: data.track_id,
+                        position_ms: data.position_ms,
+                        server_time: data.server_time,
+                    });
+                });
+        });
+    </script>
+
 </div>

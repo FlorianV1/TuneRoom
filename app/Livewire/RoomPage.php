@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Events\PlaybackSync;
 use App\Models\Room;
 use App\Models\QueueItem;
 use App\Models\RoomMember;
@@ -78,6 +79,7 @@ class RoomPage extends Component
         $state = $this->room->playbackState;
         if ($state && $state->isStopped() && !$state->current_queue_item_id) {
             $this->advanceQueue();
+            $this->broadcastSync($this->room->playbackState->fresh());
         }
     }
 
@@ -94,9 +96,23 @@ class RoomPage extends Component
         $this->checkPermission('play');
         $state = $this->room->playbackState;
         if (!$state) return;
+
+        $newStatus = $state->isPlaying() ? 'paused' : 'playing';
         $state->update([
-            'status' => $state->isPlaying() ? 'paused' : 'playing',
+            'status' => $newStatus,
             'position_ms' => $state->currentPositionMs(),
+        ]);
+
+        $fresh = $state->fresh();
+        $this->broadcastSync($fresh);
+
+        // Also dispatch directly to this user's browser
+        $this->dispatch('spotify-sync', [
+            'status' => $fresh->status,
+            'position_ms' => $fresh->position_ms,
+            'server_time' => now()->valueOf(),
+            'track_id' => $fresh->currentQueueItem?->spotify_track_id,
+            'room_id' => $this->room->id,
         ]);
     }
 
@@ -104,6 +120,32 @@ class RoomPage extends Component
     {
         $this->checkPermission('skip');
         $this->advanceQueue();
+        $fresh = $this->room->playbackState->fresh();
+        $this->broadcastSync($fresh);
+
+        $this->dispatch('spotify-sync', [
+            'status' => $fresh->status,
+            'position_ms' => $fresh->position_ms,
+            'server_time' => now()->valueOf(),
+            'track_id' => $fresh->currentQueueItem?->spotify_track_id,
+            'room_id' => $this->room->id,
+        ]);
+    }
+
+    private function broadcastSync($state): void
+    {
+        if (!$state) return;
+        try {
+            broadcast(new PlaybackSync(
+                roomId: $this->room->id,
+                status: $state->status,
+                positionMs: $state->position_ms,
+                serverTime: now()->valueOf(),
+                trackId: $state->currentQueueItem?->spotify_track_id,
+            ));
+        } catch (\Exception $e) {
+            // Reverb not available — direct sync still works
+        }
     }
 
     public function removeFromQueue(int $itemId)
