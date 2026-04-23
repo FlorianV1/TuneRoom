@@ -3,6 +3,7 @@
 use App\Http\Controllers\Auth\SpotifyController;
 use App\Livewire\CreateRoom;
 use App\Livewire\Dashboard;
+use App\Livewire\RoomPage;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 
@@ -17,7 +18,7 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/rooms/create', CreateRoom::class)->name('rooms.create');
     Route::get('/rooms/join', fn() => 'coming soon')->name('rooms.join');
-    Route::get('/rooms/{code}', fn($code) => 'coming soon')->name('rooms.show');
+    Route::get('/rooms/{code}', RoomPage::class)->name('rooms.show');
 
     Route::post('/logout', function () {
         Auth::logout();
