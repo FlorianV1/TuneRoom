@@ -20,6 +20,7 @@ class QueueItem extends Model
         'cover_url',
         'duration_ms',
         'position',
+        'source',
         'played_at',
     ];
 
@@ -31,6 +32,8 @@ class QueueItem extends Model
             'position' => 'integer',
         ];
     }
+
+    // ─── Helpers ──────────────────────────────────────────────────────
 
     public function hasBeenPlayed(): bool
     {
@@ -44,6 +47,7 @@ class QueueItem extends Model
         return sprintf('%d:%02d', intdiv($seconds, 60), $seconds % 60);
     }
 
+    // ─── Relationships ────────────────────────────────────────────────
 
     public function room(): BelongsTo
     {
@@ -54,6 +58,8 @@ class QueueItem extends Model
     {
         return $this->belongsTo(User::class, 'added_by_user_id');
     }
+
+    // ─── Scopes ───────────────────────────────────────────────────────
 
     public function scopeUpcoming($query)
     {

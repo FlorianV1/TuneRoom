@@ -144,7 +144,76 @@ class SpotifyService
         return $response->successful() || $response->status() === 204;
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────
+    /**
+     * Get tracks from a Spotify playlist.
+     * Used for fallback when queue empties.
+     */
+    public function getPlaylistTracks(User $user, string $playlistUrl, int $limit = 20): array
+    {
+        $playlistId = $this->extractPlaylistId($playlistUrl);
+        if (!$playlistId) return [];
+
+        $token = $this->tokens->getValidToken($user);
+        if (!$token) return [];
+
+        $response = Http::withToken($token)
+            ->get("https://api.spotify.com/v1/playlists/{$playlistId}/tracks", [
+                'limit' => $limit,
+                'fields' => 'items(track(id,name,artists,album,duration_ms))',
+            ]);
+
+        if ($response->failed()) return [];
+
+        return collect($response->json('items', []))
+            ->filter(fn($item) => isset($item['track']['id']))
+            ->map(fn($item) => $this->formatTrack($item['track']))
+            ->shuffle()
+            ->values()
+            ->toArray();
+    }
+
+    /**
+     * Get playlist info (name, cover).
+     */
+    public function getPlaylistInfo(User $user, string $playlistUrl): ?array
+    {
+        $playlistId = $this->extractPlaylistId($playlistUrl);
+        if (!$playlistId) return null;
+
+        $token = $this->tokens->getValidToken($user);
+        if (!$token) return null;
+
+        $response = Http::withToken($token)
+            ->get("https://api.spotify.com/v1/playlists/{$playlistId}", [
+                'fields' => 'id,name,images,tracks(total)',
+            ]);
+
+        if ($response->failed()) return null;
+
+        $data = $response->json();
+        return [
+            'id' => $data['id'],
+            'name' => $data['name'],
+            'cover_url' => $data['images'][0]['url'] ?? null,
+            'total' => $data['tracks']['total'] ?? 0,
+        ];
+    }
+
+    private function extractPlaylistId(string $input): ?string
+    {
+        // spotify:playlist:XXXX
+        if (str_starts_with($input, 'spotify:playlist:')) {
+            return str_replace('spotify:playlist:', '', $input);
+        }
+
+        // https://open.spotify.com/playlist/XXXX
+        if (str_contains($input, 'open.spotify.com/playlist/')) {
+            preg_match('/playlist\/([a-zA-Z0-9]+)/', $input, $matches);
+            return $matches[1] ?? null;
+        }
+
+        return null;
+    }
 
     private function formatTrack(array $track): array
     {

@@ -5,7 +5,6 @@ namespace App\Jobs;
 use App\Models\PlaybackState;
 use App\Models\QueueItem;
 use App\Services\SpotifyService;
-use App\Models\RoomMember;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -18,9 +17,8 @@ class AdvanceQueues implements ShouldQueue
 
     public function handle(SpotifyService $spotify): void
     {
-        // Get all playing rooms
         $states = PlaybackState::where('status', 'playing')
-            ->with(['currentQueueItem', 'room.activeMembers'])
+            ->with(['currentQueueItem', 'room.activeMembers', 'room.host'])
             ->get();
 
         foreach ($states as $state) {
@@ -29,7 +27,6 @@ class AdvanceQueues implements ShouldQueue
             $duration = $state->currentQueueItem->duration_ms;
             $currentPos = $state->currentPositionMs();
 
-            // Song has ended (with 3 second buffer)
             if ($currentPos >= $duration - 3000) {
                 $this->advanceRoom($state, $spotify);
             }
@@ -47,7 +44,11 @@ class AdvanceQueues implements ShouldQueue
             ->orderBy('position')
             ->first();
 
-        // If no next — try fallback playlist (future feature) or stop
+        // Try fallback playlist if queue is empty
+        if (!$next && $state->room->fallback_playlist_url) {
+            $next = $this->loadFallbackTracks($state, $spotify);
+        }
+
         $state->update([
             'current_queue_item_id' => $next?->id,
             'status' => $next ? 'playing' : 'stopped',
@@ -56,15 +57,41 @@ class AdvanceQueues implements ShouldQueue
 
         if (!$next) return;
 
-        // Tell every member's Spotify to play the next track
         foreach ($state->room->activeMembers as $member) {
             if (!$member->hasSpotifyConnected()) continue;
-
             try {
                 $spotify->play($member, $next->spotify_track_id, 0);
             } catch (\Exception $e) {
-                // Member's Spotify not available — skip
+                // Member's Spotify not available
             }
         }
+    }
+
+    private function loadFallbackTracks(PlaybackState $state, SpotifyService $spotify): ?QueueItem
+    {
+        $host = $state->room->host;
+        $tracks = $spotify->getPlaylistTracks($host, $state->room->fallback_playlist_url, 10);
+
+        if (empty($tracks)) return null;
+
+        $position = QueueItem::where('room_id', $state->room_id)->whereNull('played_at')->max('position') ?? -1;
+        $firstItem = null;
+
+        foreach ($tracks as $i => $track) {
+            $item = QueueItem::create([
+                'room_id' => $state->room_id,
+                'added_by_user_id' => $host->id,
+                'spotify_track_id' => $track['spotify_track_id'],
+                'title' => $track['title'],
+                'artist' => $track['artist'],
+                'album' => $track['album'],
+                'cover_url' => $track['cover_url'],
+                'duration_ms' => $track['duration_ms'],
+                'position' => $position + $i + 1,
+            ]);
+            if ($i === 0) $firstItem = $item;
+        }
+
+        return $firstItem;
     }
 }

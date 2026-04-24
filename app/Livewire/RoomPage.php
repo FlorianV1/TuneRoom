@@ -100,6 +100,36 @@ class RoomPage extends Component
         }
 
         $this->room = $room;
+
+        // If queue is empty and fallback playlist is set, load it immediately
+        $this->maybeLoadFallback();
+    }
+
+    private function maybeLoadFallback(): void
+    {
+        if (!$this->room->fallback_playlist_url) return;
+
+        $hasQueue = QueueItem::where('room_id', $this->room->id)
+            ->whereNull('played_at')
+            ->exists();
+
+        if ($hasQueue) return;
+
+        $state = $this->room->playbackState;
+        if (!$state || $state->isPlaying()) return;
+
+        $next = $this->loadFallbackTracks();
+
+        if ($next) {
+            $state->update([
+                'current_queue_item_id' => $next->id,
+                'status' => 'stopped',
+                'position_ms' => 0,
+            ]);
+
+            // Fill remaining slots with fallback songs
+            $this->topUpFallback();
+        }
     }
 
     public function openAddModal(): void
@@ -137,8 +167,26 @@ class RoomPage extends Component
     {
         $this->checkPermission('add');
 
-        $position = QueueItem::where('room_id', $this->room->id)
-            ->whereNull('played_at')->max('position') ?? -1;
+        // Insert before fallback songs so user songs always have priority
+        $firstFallback = QueueItem::where('room_id', $this->room->id)
+            ->whereNull('played_at')
+            ->where('source', 'fallback')
+            ->orderBy('position')
+            ->first();
+
+        if ($firstFallback) {
+            // Shift all fallback songs down by 1
+            QueueItem::where('room_id', $this->room->id)
+                ->whereNull('played_at')
+                ->where('source', 'fallback')
+                ->increment('position');
+            $position = $firstFallback->position - 1;
+        } else {
+            $position = QueueItem::where('room_id', $this->room->id)
+                ->whereNull('played_at')
+                ->max('position') ?? -1;
+            $position++;
+        }
 
         QueueItem::create([
             'room_id' => $this->room->id,
@@ -149,7 +197,8 @@ class RoomPage extends Component
             'album' => $album,
             'cover_url' => $coverUrl,
             'duration_ms' => $durationMs,
-            'position' => $position + 1,
+            'position' => $position,
+            'source' => 'user',
         ]);
 
         $this->addedTrackIds[] = $spotifyTrackId;
@@ -159,6 +208,9 @@ class RoomPage extends Component
             $this->advanceQueue();
             $this->broadcastSync($this->room->playbackState->fresh());
         }
+
+        // Top up fallback to always keep 10 songs ready
+        $this->topUpFallback();
     }
 
     public function closeAddModal()
@@ -282,10 +334,21 @@ class RoomPage extends Component
     {
         $state = $this->room->playbackState;
         if (!$state) return;
+
         if ($state->current_queue_item_id) {
             QueueItem::find($state->current_queue_item_id)?->update(['played_at' => now()]);
         }
-        $next = QueueItem::where('room_id', $this->room->id)->whereNull('played_at')->orderBy('position')->first();
+
+        $next = QueueItem::where('room_id', $this->room->id)
+            ->whereNull('played_at')
+            ->orderBy('position')
+            ->first();
+
+        // Queue is empty — try fallback playlist
+        if (!$next && $this->room->fallback_playlist_url) {
+            $next = $this->loadFallbackTracks();
+        }
+
         $state->update([
             'current_queue_item_id' => $next?->id,
             'status' => $next ? 'playing' : 'stopped',
@@ -293,10 +356,85 @@ class RoomPage extends Component
         ]);
     }
 
+    private function topUpFallback(): void
+    {
+        if (!$this->room->fallback_playlist_url) return;
+
+        $total = QueueItem::where('room_id', $this->room->id)->whereNull('played_at')->count();
+        if ($total >= 10) return;
+
+        $needed = 10 - $total;
+        $spotify = app(SpotifyService::class);
+        $tracks = $spotify->getPlaylistTracks($this->room->host, $this->room->fallback_playlist_url, $needed + 5);
+        if (empty($tracks)) return;
+
+        $position = QueueItem::where('room_id', $this->room->id)->whereNull('played_at')->max('position') ?? -1;
+        $added = 0;
+
+        foreach ($tracks as $track) {
+            if ($added >= $needed) break;
+            QueueItem::create([
+                'room_id' => $this->room->id,
+                'added_by_user_id' => $this->room->host_user_id,
+                'spotify_track_id' => $track['spotify_track_id'],
+                'title' => $track['title'],
+                'artist' => $track['artist'],
+                'album' => $track['album'],
+                'cover_url' => $track['cover_url'],
+                'duration_ms' => $track['duration_ms'],
+                'position' => ++$position,
+                'source' => 'fallback',
+            ]);
+            $added++;
+        }
+    }
+
+    private function loadFallbackTracks(): ?QueueItem
+    {
+        $spotify = app(SpotifyService::class);
+        $host = $this->room->host;
+        $tracks = $spotify->getPlaylistTracks($host, $this->room->fallback_playlist_url, 10);
+
+        if (empty($tracks)) return null;
+
+        $position = QueueItem::where('room_id', $this->room->id)->whereNull('played_at')->max('position') ?? -1;
+        $firstItem = null;
+
+        foreach ($tracks as $i => $track) {
+            $item = QueueItem::create([
+                'room_id' => $this->room->id,
+                'added_by_user_id' => $host->id,
+                'spotify_track_id' => $track['spotify_track_id'],
+                'title' => $track['title'],
+                'artist' => $track['artist'],
+                'album' => $track['album'],
+                'cover_url' => $track['cover_url'],
+                'duration_ms' => $track['duration_ms'],
+                'position' => $position + $i + 1,
+                'source' => 'fallback',
+            ]);
+            if ($i === 0) $firstItem = $item;
+        }
+
+        return $firstItem;
+    }
+
     private function reorderQueue(): void
     {
         QueueItem::where('room_id', $this->room->id)->whereNull('played_at')->orderBy('position')
             ->get()->each(fn($item, $i) => $item->update(['position' => $i]));
+    }
+
+    public function reorderQueueItems(array $ids): void
+    {
+        $this->checkPermission('skip');
+
+        foreach ($ids as $position => $id) {
+            QueueItem::where('id', $id)
+                ->where('room_id', $this->room->id)
+                ->whereNull('played_at')
+                ->update(['position' => $position]);
+        }
     }
 
     public function render()

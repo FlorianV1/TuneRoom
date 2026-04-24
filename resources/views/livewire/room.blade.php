@@ -68,10 +68,14 @@
                     </button>
                 @endif
             </div>
-            <div class="flex-1 overflow-y-auto py-2">
+            <div class="flex-1 overflow-y-auto py-2" id="queue-list">
                 @forelse($queue as $i => $item)
                     <div
-                        class="flex items-center gap-3 px-4 py-2.5 {{ $i === 0 ? 'bg-white/[0.04]' : 'hover:bg-white/[0.02]' }} group transition-colors">
+                        class="flex items-center gap-2 px-3 py-2.5 {{ $i === 0 ? 'bg-white/[0.04]' : 'hover:bg-white/[0.02] drag-handle cursor-grab active:cursor-grabbing' }} group transition-colors {{ $i > 0 && $myPerms['skip'] ? 'drag-handle' : '' }}"
+                        data-item-id="{{ $item->id }}"
+                        data-index="{{ $i }}">
+
+                        {{-- Position / playing indicator --}}
                         <div class="w-5 text-center shrink-0">
                             @if($i === 0)
                                 <div class="flex items-center justify-center gap-[2px]">
@@ -84,6 +88,8 @@
                                 <span class="text-[11px] text-white/20 font-mono">{{ $i + 1 }}</span>
                             @endif
                         </div>
+
+                        {{-- Album art --}}
                         <div
                             class="w-9 h-9 rounded-md shrink-0 bg-gradient-to-br from-orange-500/40 to-purple-600/40 flex items-center justify-center overflow-hidden">
                             @if($item->cover_url)
@@ -95,6 +101,8 @@
                                 </svg>
                             @endif
                         </div>
+
+                        {{-- Track info --}}
                         <div class="flex-1 min-w-0">
                             <div
                                 class="text-xs font-semibold truncate {{ $i === 0 ? 'text-orange-300' : 'text-white' }}">{{ $item->title }}</div>
@@ -110,9 +118,15 @@
                                     @endif
                                 </div>
                                 {{ explode(' ', $item->addedBy->name ?? '')[0] }}
+                                @if(isset($item->source) && $item->source === 'fallback')
+                                    <span
+                                        class="px-1 py-0.5 rounded text-[9px] font-medium bg-white/[0.06] text-white/20">fallback</span>
+                                @endif
                             </div>
                         </div>
-                        <div class="flex items-center gap-2 shrink-0">
+
+                        {{-- Duration + remove --}}
+                        <div class="flex items-center gap-1.5 shrink-0">
                             <span class="text-[11px] text-white/30 font-mono">{{ $item->durationFormatted() }}</span>
                             @if($myPerms['skip'] && $i > 0)
                                 <button wire:click="removeFromQueue({{ $item->id }})"
@@ -173,9 +187,8 @@
                     @endif
                 </div>
                 <div class="text-center">
-                    <div class="text-2xl font-bold tracking-tight mb-1">
-                        {{ $state?->currentQueueItem?->title ?? 'Nothing playing' }}
-                    </div>
+                    <div
+                        class="text-2xl font-bold tracking-tight mb-1">{{ $state?->currentQueueItem?->title ?? 'Nothing playing' }}</div>
                     <div class="text-sm text-white/50">
                         {{ $state?->currentQueueItem?->artist ?? '' }}
                         @if($state?->currentQueueItem?->album)
@@ -187,7 +200,6 @@
 
             {{-- Controls --}}
             <div class="w-full max-w-md z-10">
-                {{-- Progress bar --}}
                 @php
                     $duration = $state?->currentQueueItem?->duration_ms ?? 1;
                     $position = $state?->currentPositionMs() ?? 0;
@@ -215,7 +227,6 @@
                     </div>
                 </div>
 
-                {{-- Transport --}}
                 <div class="flex items-center justify-center gap-4">
                     <div
                         class="flex items-center gap-1 bg-white/[0.05] border border-white/[0.08] rounded-full px-2 py-1.5">
@@ -347,7 +358,7 @@
                     @endforeach
                 </div>
                 <div class="p-4 border-t border-white/[0.08] flex flex-col gap-2">
-                    <button onclick="navigator.clipboard.writeText(window.location.href)"
+                    <button onclick="copyInviteLink()"
                             class="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-white/[0.08] text-xs font-medium text-white/50 hover:text-white hover:border-white/[0.16] transition-all">
                         <svg class="w-3.5 h-3.5" viewBox="0 0 20 20" fill="none" stroke="currentColor"
                              stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
@@ -504,17 +515,19 @@
         </div>
     @endif
 
-    {{-- ── Real-time progress + sync ───────────────────────────────── --}}
+    {{-- ── Scripts ──────────────────────────────────────────────────── --}}
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
     <script>
         // ── Copy invite link ──────────────────────────────────────────
         function copyInviteLink(btn) {
             const url = '{{ url()->current() }}';
             const label = document.getElementById('invite-btn-text');
-
             if (navigator.clipboard && navigator.clipboard.writeText) {
                 navigator.clipboard.writeText(url).then(() => {
-                    label.textContent = 'Copied!';
-                    setTimeout(() => label.textContent = 'Invite', 2000);
+                    if (label) {
+                        label.textContent = 'Copied!';
+                        setTimeout(() => label.textContent = 'Invite', 2000);
+                    }
                 }).catch(() => fallbackCopy(url, label));
             } else {
                 fallbackCopy(url, label);
@@ -546,7 +559,6 @@
 
         function startProgress() {
             if (progressInterval) clearInterval(progressInterval);
-
             progressInterval = setInterval(() => {
                 const bar = document.getElementById('progress-bar');
                 const thumb = document.getElementById('progress-thumb');
@@ -572,10 +584,35 @@
             }, 250);
         }
 
-        // Restart progress bar after every Livewire update
         document.addEventListener('livewire:updated', startProgress);
         document.addEventListener('DOMContentLoaded', startProgress);
         startProgress();
+
+        // ── Drag to reorder queue ─────────────────────────────────────
+        function initSortable() {
+            const list = document.getElementById('queue-list');
+            if (!list) return;
+            if (list._sortable) {
+                list._sortable.destroy();
+            }
+
+            list._sortable = new Sortable(list, {
+                handle: '.drag-handle',
+                animation: 150,
+                ghostClass: 'opacity-30',
+                filter: '[data-index="0"]',
+                onEnd: function (evt) {
+                    const items = [...list.querySelectorAll('[data-item-id]')];
+                    const order = items.map(el => parseInt(el.dataset.itemId));
+                    @this.
+                    reorderQueueItems(order);
+                }
+            });
+        }
+
+        document.addEventListener('livewire:updated', initSortable);
+        document.addEventListener('DOMContentLoaded', initSortable);
+        initSortable();
 
         // ── Spotify sync ─────────────────────────────────────────────
         function syncSpotify(data) {
@@ -602,7 +639,6 @@
             });
         });
 
-        // Reverb (works when deployed with proper WSS)
         document.addEventListener('DOMContentLoaded', () => {
             if (typeof Echo === 'undefined') return;
             Echo.join(`room.{{ $room->id }}`)

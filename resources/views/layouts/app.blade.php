@@ -18,6 +18,8 @@
     <meta name="twitter:description"
           content="{{ $pageDescription ?? 'Small rooms. Shared queue. Host controls who can play, skip, and add. Everyone hears the same beat at the same moment.' }}"/>
 
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
