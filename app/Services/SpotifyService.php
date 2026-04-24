@@ -38,8 +38,48 @@ class SpotifyService
     }
 
     /**
-     * Get a single track by Spotify track ID or URI.
+     * Get the user's recently played tracks.
      */
+    public function recentlyPlayed(User $user, int $limit = 8): array
+    {
+        $token = $this->tokens->getValidToken($user);
+        if (!$token) return [];
+
+        $response = Http::withToken($token)
+            ->get('https://api.spotify.com/v1/me/player/recently-played', [
+                'limit' => $limit,
+            ]);
+
+        if ($response->failed()) return [];
+
+        return collect($response->json('items', []))
+            ->map(fn($item) => $this->formatTrack($item['track']))
+            ->unique('spotify_track_id')
+            ->values()
+            ->toArray();
+    }
+
+    /**
+     * Get the user's top tracks.
+     */
+    public function topTracks(User $user, int $limit = 8): array
+    {
+        $token = $this->tokens->getValidToken($user);
+        if (!$token) return [];
+
+        $response = Http::withToken($token)
+            ->get('https://api.spotify.com/v1/me/top/tracks', [
+                'limit' => $limit,
+                'time_range' => 'short_term',
+            ]);
+
+        if ($response->failed()) return [];
+
+        return collect($response->json('items', []))
+            ->map(fn($track) => $this->formatTrack($track))
+            ->toArray();
+    }
+
     public function getTrack(User $user, string $trackId): ?array
     {
         // Handle full URIs like spotify:track:xxx or URLs

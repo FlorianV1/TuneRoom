@@ -17,6 +17,8 @@ class SpotifyController extends Controller
                 'user-read-private',
                 'user-modify-playback-state',
                 'user-read-playback-state',
+                'user-read-recently-played',
+                'user-top-read',
             ])
             ->stateless()
             ->redirect();
@@ -62,6 +64,8 @@ class SpotifyController extends Controller
                 'user-read-private',
                 'user-modify-playback-state',
                 'user-read-playback-state',
+                'user-read-recently-played',
+                'user-top-read',
             ])
             ->stateless()
             ->redirect();

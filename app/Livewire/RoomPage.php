@@ -21,6 +21,7 @@ class RoomPage extends Component
     public array $searchResults = [];
     public bool $searching = false;
     public array $addedTrackIds = [];
+    public array $favoriteTracks = [];
 
     // Track last synced state to avoid unnecessary Spotify calls
     public ?string $lastSyncedTrackId = null;
@@ -101,6 +102,26 @@ class RoomPage extends Component
         $this->room = $room;
     }
 
+    public function openAddModal(): void
+    {
+        $this->showAddModal = true;
+
+        if (empty($this->favoriteTracks)) {
+            $spotify = app(SpotifyService::class);
+            $user = Auth::user();
+
+            // Merge recently played + top tracks, deduplicated
+            $recent = $spotify->recentlyPlayed($user, 6);
+            $top = $spotify->topTracks($user, 6);
+
+            $this->favoriteTracks = collect(array_merge($recent, $top))
+                ->unique('spotify_track_id')
+                ->take(8)
+                ->values()
+                ->toArray();
+        }
+    }
+
     public function updatedSearchQuery(string $value)
     {
         if (strlen($value) < 2) {
@@ -146,6 +167,7 @@ class RoomPage extends Component
         $this->searchQuery = '';
         $this->searchResults = [];
         $this->addedTrackIds = [];
+        $this->favoriteTracks = [];
     }
 
     public function togglePlay()

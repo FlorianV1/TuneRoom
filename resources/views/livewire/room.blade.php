@@ -58,7 +58,7 @@
                     <div class="text-[11px] text-white/30 mt-0.5">{{ $queue->count() }} songs</div>
                 </div>
                 @if($myPerms['add'])
-                    <button wire:click="$set('showAddModal', true)"
+                    <button wire:click="openAddModal"
                             class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-400 text-[#1a0a00] text-xs font-bold hover:bg-orange-300 transition-colors">
                         <svg class="w-3 h-3" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5"
                              stroke-linecap="round">
@@ -405,10 +405,55 @@
                 </div>
                 <div class="max-h-[420px] overflow-y-auto">
                     @if(empty($searchResults) && strlen($searchQuery) < 2)
-                        <div class="py-12 text-center">
-                            <div class="text-2xl mb-2">🎵</div>
-                            <div class="text-sm text-white/30">Search for a song, artist or album</div>
-                        </div>
+                        @if(!empty($favoriteTracks))
+                            <div class="px-4 pt-3 pb-1">
+                                <div class="text-[10px] font-semibold uppercase tracking-widest text-white/30">Your
+                                    favorites
+                                </div>
+                            </div>
+                            @foreach($favoriteTracks as $track)
+                                <div
+                                    class="flex items-center gap-3 px-4 py-3 border-b border-white/[0.06] hover:bg-white/[0.03] transition-colors">
+                                    <div class="w-10 h-10 rounded-lg shrink-0 bg-white/10 overflow-hidden">
+                                        @if($track['cover_url'])
+                                            <img src="{{ $track['cover_url'] }}" class="w-full h-full object-cover"/>
+                                        @endif
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="text-sm font-semibold truncate">{{ $track['title'] }}</div>
+                                        <div class="text-xs text-white/40 truncate">{{ $track['artist'] }}
+                                            · {{ $track['album'] }}</div>
+                                    </div>
+                                    <div
+                                        class="text-xs text-white/30 font-mono shrink-0">{{ gmdate('i:s', $track['duration_ms'] / 1000) }}</div>
+                                    @if(in_array($track['spotify_track_id'], $addedTrackIds))
+                                        <div
+                                            class="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-green-500/10 border border-green-500/20 text-xs font-medium text-green-400 shrink-0">
+                                            <svg class="w-3 h-3" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+                                                 stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                                <path d="M4 10l4 4 8-8"/>
+                                            </svg>
+                                            Added
+                                        </div>
+                                    @else
+                                        <button
+                                            wire:click="addTrack('{{ $track['spotify_track_id'] }}', '{{ addslashes($track['title']) }}', '{{ addslashes($track['artist']) }}', '{{ addslashes($track['album']) }}', '{{ $track['cover_url'] }}', {{ $track['duration_ms'] }})"
+                                            class="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white/[0.06] border border-white/[0.08] text-xs font-medium text-white/60 hover:bg-orange-400 hover:border-orange-400 hover:text-[#1a0a00] transition-all shrink-0">
+                                            <svg class="w-3 h-3" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+                                                 stroke-width="2.5" stroke-linecap="round">
+                                                <path d="M10 4v12M4 10h12"/>
+                                            </svg>
+                                            Add
+                                        </button>
+                                    @endif
+                                </div>
+                            @endforeach
+                        @else
+                            <div class="py-12 text-center">
+                                <div class="text-2xl mb-2">🎵</div>
+                                <div class="text-sm text-white/30">Search for a song, artist or album</div>
+                            </div>
+                        @endif
                     @elseif(empty($searchResults) && strlen($searchQuery) >= 2)
                         <div class="py-12 text-center text-sm text-white/30">No results found</div>
                     @else
