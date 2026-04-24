@@ -28,10 +28,17 @@ class RoomPage extends Component
     public ?string $lastSyncedStatus = null;
 
     #[Poll(2000)]
-    public function syncPlayback(): void
+    public function syncPlayback()
     {
+        $this->room->refresh();
+
+        // Room was ended by host or auto-closed
+        if ($this->room->status === 'ended') {
+            return redirect()->route('dashboard')->with('info', 'This room has ended.');
+        }
         $this->room->load('playbackState.currentQueueItem');
-        $state = $this->room->playbackState;
+        $state = $this->room->playbackState?->fresh(); // fresh() ensures timestamps are current
+        $state?->load('currentQueueItem');
 
         if (!$state) return;
 
@@ -85,12 +92,36 @@ class RoomPage extends Component
             ->where('status', 'active')
             ->firstOrFail();
 
+        // Check if user is already in a different active room — auto-leave it
+        $existingMembership = RoomMember::join('rooms', 'rooms.id', '=', 'room_members.room_id')
+            ->where('rooms.status', 'active')
+            ->where('room_members.user_id', Auth::id())
+            ->whereNull('room_members.left_at')
+            ->where('room_members.room_id', '!=', $room->id)
+            ->select('room_members.*')
+            ->first();
+
+        if ($existingMembership) {
+            $existingMembership->update(['left_at' => now()]);
+        }
+
         $member = RoomMember::where('room_id', $room->id)
             ->where('user_id', Auth::id())
             ->whereNull('left_at')
             ->first();
 
         if (!$member) {
+            // Check room isn't full
+            $memberCount = RoomMember::where('room_id', $room->id)
+                ->whereNull('left_at')
+                ->count();
+
+            if ($memberCount >= 10) {
+                session()->flash('error', 'This room is full (10/10).');
+                redirect()->route('dashboard');
+                return;
+            }
+
             RoomMember::create([
                 'room_id' => $room->id,
                 'user_id' => Auth::id(),
@@ -100,9 +131,27 @@ class RoomPage extends Component
         }
 
         $this->room = $room;
-
-        // If queue is empty and fallback playlist is set, load it immediately
         $this->maybeLoadFallback();
+
+        // Preload favorites in background so modal opens instantly
+        $this->preloadFavorites();
+    }
+
+    private function preloadFavorites(): void
+    {
+        try {
+            $spotify = app(SpotifyService::class);
+            $user = Auth::user();
+            $recent = $spotify->recentlyPlayed($user, 6);
+            $top = $spotify->topTracks($user, 6);
+            $this->favoriteTracks = collect(array_merge($recent, $top))
+                ->unique('spotify_track_id')
+                ->take(8)
+                ->values()
+                ->toArray();
+        } catch (\Exception $e) {
+            $this->favoriteTracks = [];
+        }
     }
 
     private function maybeLoadFallback(): void
@@ -136,19 +185,9 @@ class RoomPage extends Component
     {
         $this->showAddModal = true;
 
+        // Reload favorites if empty (e.g. failed on mount)
         if (empty($this->favoriteTracks)) {
-            $spotify = app(SpotifyService::class);
-            $user = Auth::user();
-
-            // Merge recently played + top tracks, deduplicated
-            $recent = $spotify->recentlyPlayed($user, 6);
-            $top = $spotify->topTracks($user, 6);
-
-            $this->favoriteTracks = collect(array_merge($recent, $top))
-                ->unique('spotify_track_id')
-                ->take(8)
-                ->values()
-                ->toArray();
+            $this->preloadFavorites();
         }
     }
 
@@ -156,10 +195,16 @@ class RoomPage extends Component
     {
         if (strlen($value) < 2) {
             $this->searchResults = [];
+            $this->searching = false;
             return;
         }
         $this->searching = true;
-        $this->searchResults = app(SpotifyService::class)->searchTracks(Auth::user(), $value, 8);
+    }
+
+    public function search(): void
+    {
+        if (strlen($this->searchQuery) < 2) return;
+        $this->searchResults = app(SpotifyService::class)->searchTracks(Auth::user(), $this->searchQuery, 8);
         $this->searching = false;
     }
 
@@ -232,6 +277,7 @@ class RoomPage extends Component
         $state->update([
             'status' => $newStatus,
             'position_ms' => $state->currentPositionMs(),
+            'started_at' => $newStatus === 'playing' ? now() : $state->started_at,
         ]);
 
         $fresh = $state->fresh();
@@ -311,6 +357,30 @@ class RoomPage extends Component
         RoomMember::where('room_id', $this->room->id)->where('user_id', $userId)->update(['left_at' => now()]);
     }
 
+    public function endRoom()
+    {
+        $this->ensureHost();
+
+        $this->room->update([
+            'status' => 'ended',
+            'ended_at' => now(),
+        ]);
+
+        // Pause playback state
+        $this->room->playbackState?->update(['status' => 'stopped']);
+
+        // Broadcast to all members that room ended
+        broadcast(new PlaybackSync(
+            roomId: $this->room->id,
+            status: 'stopped',
+            positionMs: 0,
+            serverTime: now()->valueOf(),
+            trackId: null,
+        ))->toOthers();
+
+        return redirect()->route('dashboard')->with('success', 'Room ended.');
+    }
+
     public function leaveRoom()
     {
         RoomMember::where('room_id', $this->room->id)->where('user_id', Auth::id())->update(['left_at' => now()]);
@@ -353,7 +423,11 @@ class RoomPage extends Component
             'current_queue_item_id' => $next?->id,
             'status' => $next ? 'playing' : 'stopped',
             'position_ms' => 0,
+            'started_at' => $next ? now() : null,
         ]);
+
+        // Keep queue topped up to 10 songs
+        $this->topUpFallback();
     }
 
     private function topUpFallback(): void
@@ -450,7 +524,7 @@ class RoomPage extends Component
         return view('livewire.room', [
             'room' => $this->room,
             'state' => $this->room->playbackState,
-            'queue' => $this->room->upcomingQueue,
+            'queue' => $this->room->upcomingQueue->skip(1)->values(), // skip currently playing
             'members' => $this->room->activeMembers,
             'myPerms' => $this->room->permissionsFor(Auth::user()),
             'isHost' => $myMember?->role === 'host',

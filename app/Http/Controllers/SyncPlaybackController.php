@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Room;
 use App\Services\SpotifyService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -25,10 +24,8 @@ class SyncPlaybackController extends Controller
             return response()->json(['error' => 'Spotify not connected'], 422);
         }
 
-        // Calculate latency-compensated position
         $latencyMs = max(0, now()->valueOf() - $validated['server_time']);
         $positionMs = $validated['position_ms'] + $latencyMs;
-
         $trackId = $validated['track_id'];
         $status = $validated['status'];
 

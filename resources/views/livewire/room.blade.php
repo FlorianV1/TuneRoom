@@ -55,7 +55,6 @@
             <div class="flex items-center justify-between px-5 py-4 border-b border-white/[0.08]">
                 <div>
                     <div class="text-sm font-semibold">Up next</div>
-                    <div class="text-[11px] text-white/30 mt-0.5">{{ $queue->count() }} songs</div>
                 </div>
                 @if($myPerms['add'])
                     <button wire:click="openAddModal"
@@ -71,25 +70,11 @@
             <div class="flex-1 overflow-y-auto py-2" id="queue-list">
                 @forelse($queue as $i => $item)
                     <div
-                        class="flex items-center gap-2 px-3 py-2.5 {{ $i === 0 ? 'bg-white/[0.04]' : 'hover:bg-white/[0.02] drag-handle cursor-grab active:cursor-grabbing' }} group transition-colors {{ $i > 0 && $myPerms['skip'] ? 'drag-handle' : '' }}"
-                        data-item-id="{{ $item->id }}"
-                        data-index="{{ $i }}">
-
-                        {{-- Position / playing indicator --}}
+                        class="flex items-center gap-2 px-3 py-2.5 {{ $i === 0 ? 'bg-white/[0.04]' : 'hover:bg-white/[0.02] drag-handle cursor-grab active:cursor-grabbing' }} group transition-colors"
+                        data-item-id="{{ $item->id }}" data-index="{{ $i }}">
                         <div class="w-5 text-center shrink-0">
-                            @if($i === 0)
-                                <div class="flex items-center justify-center gap-[2px]">
-                                    @foreach([1,1.5,0.8,1.3,0.9] as $j => $h)
-                                        <div class="w-[2px] bg-orange-400 rounded-sm animate-pulse"
-                                             style="height: {{ $h * 8 }}px; animation-delay: {{ $j * 0.1 }}s"></div>
-                                    @endforeach
-                                </div>
-                            @else
-                                <span class="text-[11px] text-white/20 font-mono">{{ $i + 1 }}</span>
-                            @endif
+                            <span class="text-[11px] text-white/20 font-mono">{{ $i + 1 }}</span>
                         </div>
-
-                        {{-- Album art --}}
                         <div
                             class="w-9 h-9 rounded-md shrink-0 bg-gradient-to-br from-orange-500/40 to-purple-600/40 flex items-center justify-center overflow-hidden">
                             @if($item->cover_url)
@@ -101,11 +86,8 @@
                                 </svg>
                             @endif
                         </div>
-
-                        {{-- Track info --}}
                         <div class="flex-1 min-w-0">
-                            <div
-                                class="text-xs font-semibold truncate {{ $i === 0 ? 'text-orange-300' : 'text-white' }}">{{ $item->title }}</div>
+                            <div class="text-xs font-semibold truncate text-white">{{ $item->title }}</div>
                             <div class="text-[11px] text-white/40 truncate flex items-center gap-1.5">
                                 {{ $item->artist }}
                                 <span class="text-white/20">·</span>
@@ -124,11 +106,9 @@
                                 @endif
                             </div>
                         </div>
-
-                        {{-- Duration + remove --}}
                         <div class="flex items-center gap-1.5 shrink-0">
                             <span class="text-[11px] text-white/30 font-mono">{{ $item->durationFormatted() }}</span>
-                            @if($myPerms['skip'] && $i > 0)
+                            @if($myPerms['skip'])
                                 <button wire:click="removeFromQueue({{ $item->id }})"
                                         class="opacity-0 group-hover:opacity-100 text-white/20 hover:text-red-400 transition-all">
                                     <svg class="w-3 h-3" viewBox="0 0 20 20" stroke="currentColor" stroke-width="2"
@@ -155,8 +135,6 @@
                 <div
                     class="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-orange-500/10 rounded-full blur-[120px]"></div>
             </div>
-
-            {{-- Sync status --}}
             <div class="flex items-center gap-2 text-xs text-white/40 z-10">
                 <div class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></div>
                 All {{ $members->count() }} in sync
@@ -167,8 +145,6 @@
                     Added by {{ explode(' ', $state->currentQueueItem->addedBy->name ?? '')[0] }}
                 @endif
             </div>
-
-            {{-- Album art --}}
             <div class="flex flex-col items-center gap-6 z-10">
                 <div
                     class="w-[280px] h-[280px] rounded-2xl bg-gradient-to-br from-orange-500/60 to-purple-700/60 flex items-center justify-center shadow-2xl shadow-orange-500/20 relative overflow-hidden">
@@ -178,12 +154,9 @@
                     @else
                         <div class="absolute inset-0 bg-gradient-to-br from-orange-500/40 to-purple-700/40"></div>
                         <div
-                            class="absolute bottom-5 left-5 right-5 font-['Instrument_Serif',serif] italic text-3xl text-white/90 leading-tight">
-                            {{ $state?->currentQueueItem?->title ?? 'Nothing playing' }}
-                        </div>
-                        <div class="absolute top-4 left-4 text-[10px] tracking-[0.2em] text-white/60 uppercase">
-                            {{ $state?->currentQueueItem?->artist ?? '' }}
-                        </div>
+                            class="absolute bottom-5 left-5 right-5 font-['Instrument_Serif',serif] italic text-3xl text-white/90 leading-tight">{{ $state?->currentQueueItem?->title ?? 'Nothing playing' }}</div>
+                        <div
+                            class="absolute top-4 left-4 text-[10px] tracking-[0.2em] text-white/60 uppercase">{{ $state?->currentQueueItem?->artist ?? '' }}</div>
                     @endif
                 </div>
                 <div class="text-center">
@@ -197,8 +170,6 @@
                     </div>
                 </div>
             </div>
-
-            {{-- Controls --}}
             <div class="w-full max-w-md z-10">
                 @php
                     $duration = $state?->currentQueueItem?->duration_ms ?? 1;
@@ -218,15 +189,13 @@
                         </div>
                         <div id="progress-thumb"
                              class="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-orange-400 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                             style="left: calc({{ $pct }}% - 6px)">
-                        </div>
+                             style="left: calc({{ $pct }}% - 6px)"></div>
                     </div>
                     <div class="flex justify-between text-[11px] text-white/30 font-mono">
                         <span id="current-time">{{ gmdate('i:s', ($position / 1000)) }}</span>
                         <span id="total-time">{{ gmdate('i:s', ($duration / 1000)) }}</span>
                     </div>
                 </div>
-
                 <div class="flex items-center justify-center gap-4">
                     <div
                         class="flex items-center gap-1 bg-white/[0.05] border border-white/[0.08] rounded-full px-2 py-1.5">
@@ -235,7 +204,6 @@
                                 class="w-7 h-7 rounded-full hover:bg-white/10 transition-colors text-sm flex items-center justify-center">{{ $emoji }}</button>
                         @endforeach
                     </div>
-
                     @if($myPerms['skip'])
                         <button
                             class="w-10 h-10 rounded-full bg-white/[0.06] border border-white/[0.08] flex items-center justify-center text-white/50 hover:text-white hover:bg-white/[0.1] transition-all">
@@ -245,7 +213,6 @@
                             </svg>
                         </button>
                     @endif
-
                     @if($myPerms['play'])
                         <button wire:click="togglePlay"
                                 class="w-14 h-14 rounded-full bg-white flex items-center justify-center text-[#0f0d0b] hover:bg-white/90 transition-colors shadow-xl">
@@ -261,7 +228,6 @@
                             @endif
                         </button>
                     @endif
-
                     @if($myPerms['skip'])
                         <button wire:click="skipNext"
                                 class="w-10 h-10 rounded-full bg-white/[0.06] border border-white/[0.08] flex items-center justify-center text-white/50 hover:text-white hover:bg-white/[0.1] transition-all">
@@ -271,7 +237,6 @@
                             </svg>
                         </button>
                     @endif
-
                     <div class="flex items-center gap-2 text-white/30">
                         <svg class="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"
                              stroke-linecap="round">
@@ -281,7 +246,6 @@
                         <input type="range" min="0" max="100" value="80" class="w-20 accent-orange-400"/>
                     </div>
                 </div>
-
                 @if($queue->count() > 1)
                     <div class="text-center mt-4 text-xs text-white/30">
                         Up next <span class="text-white/50 font-medium">{{ $queue->skip(1)->first()?->title }}</span>
@@ -313,8 +277,7 @@
                             $memberRecord = \App\Models\RoomMember::where('room_id', $room->id)->where('user_id', $member->id)->first();
                             $role = $memberRecord?->role ?? 'listener';
                         @endphp
-                        <button
-                            @if($isHost && !$isYou) wire:click="$set('permDrawerUserId', {{ $member->id }})" @endif
+                        <button @if($isHost && !$isYou) wire:click="$set('permDrawerUserId', {{ $member->id }})" @endif
                         class="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/[0.03] transition-colors text-left {{ $isYou ? 'cursor-default' : 'cursor-pointer' }}">
                             <div
                                 class="w-9 h-9 rounded-full bg-orange-500/20 border border-orange-400/20 flex items-center justify-center text-xs font-bold text-orange-300 shrink-0 overflow-hidden">
@@ -369,6 +332,12 @@
                         </svg>
                         Copy invite link
                     </button>
+                    @if($isHost)
+                        <button wire:click="endRoom" wire:confirm="End this room for everyone? This can't be undone."
+                                class="w-full py-2.5 rounded-xl border border-red-500/20 text-xs font-medium text-red-400 hover:bg-red-500/10 hover:border-red-500/40 transition-all">
+                            End room for everyone
+                        </button>
+                    @endif
                     <button wire:click="leaveRoom"
                             class="w-full py-2 text-xs text-white/20 hover:text-red-400 transition-colors">
                         Leave room
@@ -403,7 +372,7 @@
                             <path d="M12.5 12.5L16 16"/>
                         </svg>
                     @endif
-                    <input wire:model.live.debounce.400ms="searchQuery" type="text"
+                    <input wire:model.live="searchQuery" wire:keyup.debounce.400ms="search" type="text"
                            placeholder="Search Spotify or paste a track link…"
                            class="flex-1 bg-transparent text-sm text-white placeholder-white/20 outline-none"
                            autofocus/>
@@ -416,7 +385,19 @@
                 </div>
                 <div class="max-h-[420px] overflow-y-auto">
                     @if(empty($searchResults) && strlen($searchQuery) < 2)
-                        @if(!empty($favoriteTracks))
+                        @if($searching)
+                            {{-- Loading skeleton --}}
+                            @foreach(range(1, 4) as $i)
+                                <div class="flex items-center gap-3 px-4 py-3 border-b border-white/[0.06]">
+                                    <div class="w-10 h-10 rounded-lg shrink-0 bg-white/[0.06] animate-pulse"></div>
+                                    <div class="flex-1 space-y-2">
+                                        <div class="h-3 bg-white/[0.06] rounded animate-pulse w-3/4"></div>
+                                        <div class="h-2.5 bg-white/[0.04] rounded animate-pulse w-1/2"></div>
+                                    </div>
+                                    <div class="w-16 h-7 bg-white/[0.06] rounded-lg animate-pulse shrink-0"></div>
+                                </div>
+                            @endforeach
+                        @elseif(!empty($favoriteTracks))
                             <div class="px-4 pt-3 pb-1">
                                 <div class="text-[10px] font-semibold uppercase tracking-widest text-white/30">Your
                                     favorites
@@ -466,7 +447,20 @@
                             </div>
                         @endif
                     @elseif(empty($searchResults) && strlen($searchQuery) >= 2)
-                        <div class="py-12 text-center text-sm text-white/30">No results found</div>
+                        @if($searching)
+                            @foreach(range(1, 5) as $i)
+                                <div class="flex items-center gap-3 px-4 py-3 border-b border-white/[0.06]">
+                                    <div class="w-10 h-10 rounded-lg shrink-0 bg-white/[0.06] animate-pulse"></div>
+                                    <div class="flex-1 space-y-2">
+                                        <div class="h-3 bg-white/[0.06] rounded animate-pulse w-2/3"></div>
+                                        <div class="h-2.5 bg-white/[0.04] rounded animate-pulse w-1/3"></div>
+                                    </div>
+                                    <div class="w-16 h-7 bg-white/[0.06] rounded-lg animate-pulse shrink-0"></div>
+                                </div>
+                            @endforeach
+                        @else
+                            <div class="py-12 text-center text-sm text-white/30">No results found</div>
+                        @endif
                     @else
                         @foreach($searchResults as $track)
                             <div
@@ -564,17 +558,14 @@
                 const thumb = document.getElementById('progress-thumb');
                 const timeEl = document.getElementById('current-time');
                 if (!bar) return;
-
                 const playing = bar.dataset.playing === '1';
                 const posMs = parseFloat(bar.dataset.position);
                 const durMs = parseFloat(bar.dataset.duration);
                 const serverTime = parseFloat(bar.dataset.serverTime);
                 if (!durMs) return;
-
                 const elapsedMs = playing ? (Date.now() - serverTime) : 0;
                 const currentMs = Math.min(posMs + elapsedMs, durMs);
                 const pct = Math.min(100, (currentMs / durMs) * 100);
-
                 bar.style.width = pct + '%';
                 if (thumb) thumb.style.left = 'calc(' + pct + '% - 6px)';
                 if (timeEl) {
@@ -588,6 +579,25 @@
         document.addEventListener('DOMContentLoaded', startProgress);
         startProgress();
 
+        // ── Auto-advance detection ────────────────────────────────────
+        let advancing = false;
+        setInterval(() => {
+            const bar = document.getElementById('progress-bar');
+            if (!bar) return;
+            const playing = bar.dataset.playing === '1';
+            const posMs = parseFloat(bar.dataset.position);
+            const durMs = parseFloat(bar.dataset.duration);
+            const elapsed = playing ? (Date.now() - parseFloat(bar.dataset.serverTime)) : 0;
+            const current = posMs + elapsed;
+            if (playing && durMs > 0 && current >= durMs - 2000 && !advancing) {
+                advancing = true;
+                console.log('Song ending — triggering advance');
+                @this.
+                skipNext();
+                setTimeout(() => advancing = false, 5000);
+            }
+        }, 1000);
+
         // ── Drag to reorder queue ─────────────────────────────────────
         function initSortable() {
             const list = document.getElementById('queue-list');
@@ -595,7 +605,6 @@
             if (list._sortable) {
                 list._sortable.destroy();
             }
-
             list._sortable = new Sortable(list, {
                 handle: '.drag-handle',
                 animation: 150,
@@ -618,10 +627,7 @@
         function syncSpotify(data) {
             fetch('{{ route('rooms.sync-playback') }}', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                },
+                headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}'},
                 body: JSON.stringify(data),
             })
                 .then(r => r.json())
@@ -638,19 +644,17 @@
                 syncSpotify(Array.isArray(data) ? data[0] : data);
             });
         });
-
         document.addEventListener('DOMContentLoaded', () => {
             if (typeof Echo === 'undefined') return;
-            Echo.join(`room.{{ $room->id }}`)
-                .listen('.playback.sync', (data) => {
-                    syncSpotify({
-                        room_id: {{ $room->id }},
-                        status: data.status,
-                        track_id: data.track_id,
-                        position_ms: data.position_ms,
-                        server_time: data.server_time,
-                    });
+            Echo.join(`room.{{ $room->id }}`).listen('.playback.sync', (data) => {
+                syncSpotify({
+                    room_id: {{ $room->id }},
+                    status: data.status,
+                    track_id: data.track_id,
+                    position_ms: data.position_ms,
+                    server_time: data.server_time
                 });
+            });
         });
     </script>
 
