@@ -4,7 +4,19 @@
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <meta name="csrf-token" content="{{ csrf_token() }}"/>
-    <title>{{ config('app.name', 'Tuneroom') }}</title>
+    <title>{{ $pageTitle ?? config('app.name', 'Tuneroom') }}</title>
+
+    {{-- Open Graph --}}
+    <meta property="og:title" content="{{ $pageTitle ?? 'Tuneroom — Listen together, down to the millisecond.' }}"/>
+    <meta property="og:description"
+          content="{{ $pageDescription ?? 'Small rooms. Shared queue. Host controls who can play, skip, and add. Everyone hears the same beat at the same moment.' }}"/>
+    <meta property="og:url" content="{{ url()->current() }}"/>
+    <meta property="og:type" content="website"/>
+    <meta property="og:site_name" content="Tuneroom"/>
+    <meta name="twitter:card" content="summary"/>
+    <meta name="twitter:title" content="{{ $pageTitle ?? 'Tuneroom — Listen together, down to the millisecond.' }}"/>
+    <meta name="twitter:description"
+          content="{{ $pageDescription ?? 'Small rooms. Shared queue. Host controls who can play, skip, and add. Everyone hears the same beat at the same moment.' }}"/>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

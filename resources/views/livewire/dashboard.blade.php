@@ -1,17 +1,24 @@
 <div class="min-h-screen bg-[#0f0d0b]">
 
     {{-- Nav --}}
-    <nav class="sticky top-0 z-50 flex items-center justify-between px-8 h-[60px] border-b border-white/[0.08] bg-[#0f0d0b]">
+    <nav
+        class="sticky top-0 z-50 flex items-center justify-between px-8 h-[60px] border-b border-white/[0.08] bg-[#0f0d0b]">
         <span class="text-lg font-extrabold tracking-tight">Tuneroom</span>
 
         <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded-full bg-orange-500/20 border border-orange-400/40 flex items-center justify-center text-xs font-semibold text-orange-300">
-                {{ strtoupper(substr($user->name, 0, 2)) }}
+            <div
+                class="w-8 h-8 rounded-full bg-orange-500/20 border border-orange-400/40 flex items-center justify-center text-xs font-semibold text-orange-300 overflow-hidden">
+                @if($user->avatar)
+                    <img src="{{ $user->avatar }}" class="w-full h-full object-cover"/>
+                @else
+                    {{ strtoupper(substr($user->name, 0, 2)) }}
+                @endif
             </div>
             <span class="text-sm text-white/60">{{ $user->name }}</span>
 
             @if($user->hasSpotifyConnected())
-                <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-500/10 border border-green-500/30 text-[11px] font-medium text-green-400">
+                <div
+                    class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-500/10 border border-green-500/30 text-[11px] font-medium text-green-400">
                     <div class="w-1.5 h-1.5 rounded-full bg-green-400"></div>
                     Spotify
                 </div>
@@ -42,7 +49,8 @@
         <div class="flex gap-3 mb-12">
             <a href="{{ route('rooms.create') }}"
                class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-orange-400 text-[#1a0a00] text-sm font-semibold hover:bg-orange-300 transition-colors">
-                <svg class="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <svg class="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round">
                     <path d="M10 4v12M4 10h12"/>
                 </svg>
                 Create room
@@ -59,7 +67,7 @@
                 <h2 class="text-[11px] font-semibold uppercase tracking-widest text-white/30 mb-4">Your rooms</h2>
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     @foreach($hostedRooms as $room)
-                        <x-room-card :room="$room" :is-host="true" />
+                        <x-room-card :room="$room" :is-host="true"/>
                     @endforeach
                 </div>
             </section>
@@ -71,7 +79,7 @@
                 <h2 class="text-[11px] font-semibold uppercase tracking-widest text-white/30 mb-4">Joined rooms</h2>
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     @foreach($joinedRooms as $room)
-                        <x-room-card :room="$room" :is-host="false" />
+                        <x-room-card :room="$room" :is-host="false"/>
                     @endforeach
                 </div>
             </section>

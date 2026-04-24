@@ -10,7 +10,8 @@
             <div class="text-[11px] font-medium text-white/30 font-mono">{{ $room->code }}</div>
         </div>
         @if($isHost)
-            <span class="px-2 py-0.5 rounded-full bg-orange-400/15 border border-orange-400/30 text-[10px] font-semibold text-orange-300">
+            <span
+                class="px-2 py-0.5 rounded-full bg-orange-400/15 border border-orange-400/30 text-[10px] font-semibold text-orange-300">
                 HOST
             </span>
         @endif
@@ -22,12 +23,14 @@
             {{-- Waveform bars --}}
             <div class="flex items-center gap-[2px] shrink-0">
                 @foreach([60, 100, 70, 90, 50] as $i => $h)
-                    <div class="w-[3px] bg-orange-400 rounded-sm animate-pulse" style="height: {{ $h/10 }}px; animation-delay: {{ $i * 0.1 }}s"></div>
+                    <div class="w-[3px] bg-orange-400 rounded-sm animate-pulse"
+                         style="height: {{ $h/10 }}px; animation-delay: {{ $i * 0.1 }}s"></div>
                 @endforeach
             </div>
             <div class="min-w-0">
                 <div class="text-xs font-semibold truncate">{{ $room->playbackState->currentQueueItem->title }}</div>
-                <div class="text-[11px] text-white/50 truncate">{{ $room->playbackState->currentQueueItem->artist }}</div>
+                <div
+                    class="text-[11px] text-white/50 truncate">{{ $room->playbackState->currentQueueItem->artist }}</div>
             </div>
         @else
             <div class="text-xs text-white/30">Nothing playing</div>
@@ -38,12 +41,18 @@
     <div class="flex items-center justify-between">
         <div class="flex items-center">
             @foreach($room->activeMembers->take(5) as $member)
-                <div class="w-6 h-6 rounded-full bg-orange-500/20 border-2 border-[#26211d] flex items-center justify-center text-[9px] font-semibold text-orange-300 {{ $loop->first ? '' : '-ml-1.5' }}">
-                    {{ strtoupper(substr($member->name, 0, 2)) }}
+                <div
+                    class="w-6 h-6 rounded-full bg-orange-500/20 border-2 border-[#26211d] flex items-center justify-center text-[9px] font-semibold text-orange-300 {{ $loop->first ? '' : '-ml-1.5' }} overflow-hidden">
+                    @if($member->avatar)
+                        <img src="{{ $member->avatar }}" class="w-full h-full object-cover"/>
+                    @else
+                        {{ strtoupper(substr($member->name, 0, 2)) }}
+                    @endif
                 </div>
             @endforeach
             @if($room->activeMembers->count() > 5)
-                <div class="w-6 h-6 rounded-full bg-[#221e1b] border-2 border-[#26211d] flex items-center justify-center text-[9px] font-semibold text-white/40 -ml-1.5">
+                <div
+                    class="w-6 h-6 rounded-full bg-[#221e1b] border-2 border-[#26211d] flex items-center justify-center text-[9px] font-semibold text-white/40 -ml-1.5">
                     +{{ $room->activeMembers->count() - 5 }}
                 </div>
             @endif

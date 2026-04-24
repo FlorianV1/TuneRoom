@@ -13,7 +13,8 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', fn() => view('landing'))->name('landing');
 Route::get('/login', [LoginController::class, 'show'])->name('login');
 Route::post('/login', [LoginController::class, 'store'])->name('login.post');
-Route::get('/register', fn() => redirect()->route('auth.spotify'))->name('register');
+Route::get('/register', [RegisterController::class, 'show'])->name('register');
+Route::post('/register', [RegisterController::class, 'store'])->name('register.post');
 
 Route::get('/creator', fn() => view('creator'))->name('creator');
 
