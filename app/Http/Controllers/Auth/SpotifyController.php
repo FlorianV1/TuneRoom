@@ -56,35 +56,4 @@ class SpotifyController extends Controller
         return redirect()->route('dashboard');
     }
 
-    public function connect()
-    {
-        return Socialite::driver('spotify')
-            ->scopes([
-                'user-read-email',
-                'user-read-private',
-                'user-modify-playback-state',
-                'user-read-playback-state',
-                'user-read-recently-played',
-                'user-top-read',
-            ])
-            ->stateless()
-            ->redirect();
-    }
-
-    public function connectCallback()
-    {
-        $spotifyUser = Socialite::driver('spotify')->stateless()->user();
-
-        /** @var User $user */
-        $user = Auth::user();
-
-        $user->update([
-            'spotify_id' => $spotifyUser->getId(),
-            'spotify_token' => $spotifyUser->token,
-            'spotify_refresh_token' => $spotifyUser->refreshToken,
-            'spotify_token_expires_at' => now()->addSeconds($spotifyUser->expiresIn),
-        ]);
-
-        return redirect()->route('dashboard')->with('success', 'Spotify connected!');
-    }
 }
