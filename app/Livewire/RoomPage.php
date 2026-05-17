@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Events\PlaybackSync;
+use App\Events\QueueUpdated;
 use App\Models\Room;
 use App\Models\QueueItem;
 use App\Models\RoomMember;
@@ -16,6 +17,9 @@ class RoomPage extends Component
     public Room $room;
     public bool $showMembers = true;
     public bool $showAddModal = false;
+    public bool $showSettings = false;
+    public string $settingsName = '';
+    public string $settingsFallbackUrl = '';
     public ?int $permDrawerUserId = null;
     public string $searchQuery = '';
     public array $searchResults = [];
@@ -26,6 +30,7 @@ class RoomPage extends Component
     // Track last synced state to avoid unnecessary Spotify calls
     public ?string $lastSyncedTrackId = null;
     public ?string $lastSyncedStatus = null;
+    public bool $noDevice = false;
 
     #[Poll(2000)]
     public function syncPlayback()
@@ -35,6 +40,12 @@ class RoomPage extends Component
         // Room was ended by host or auto-closed
         if ($this->room->status === 'ended') {
             return redirect()->route('dashboard')->with('info', 'This room has ended.');
+        }
+
+        // Current user was removed by the host
+        $myMembership = RoomMember::where('room_id', $this->room->id)->where('user_id', Auth::id())->first();
+        if (!$myMembership || $myMembership->left_at !== null) {
+            return redirect()->route('dashboard')->with('info', 'You were removed from this room.');
         }
         $this->room->load('playbackState.currentQueueItem');
         $state = $this->room->playbackState?->fresh(); // fresh() ensures timestamps are current
@@ -77,9 +88,11 @@ class RoomPage extends Component
 
         if ($status === 'playing') {
             $positionMs = $state->currentPositionMs();
-            $spotify->play($user, $trackId, $positionMs);
+            $result = $spotify->play($user, $trackId, $positionMs);
+            $this->noDevice = ($result === 'no_device');
         } elseif ($status === 'paused') {
             $spotify->pause($user);
+            $this->noDevice = false;
         }
 
         $this->lastSyncedTrackId = $trackId;
@@ -131,6 +144,8 @@ class RoomPage extends Component
         }
 
         $this->room = $room;
+        $this->settingsName = $room->name;
+        $this->settingsFallbackUrl = $room->fallback_playlist_url ?? '';
         $this->maybeLoadFallback();
 
         // Preload favorites in background so modal opens instantly
@@ -247,6 +262,15 @@ class RoomPage extends Component
         ]);
 
         $this->addedTrackIds[] = $spotifyTrackId;
+        $this->dispatch('notify', message: 'Added to queue');
+
+        try {
+            broadcast(new QueueUpdated(
+                room_id: $this->room->id,
+                added_by_name: Auth::user()->name,
+                track_title: $title,
+            ))->toOthers();
+        } catch (\Exception) {}
 
         $state = $this->room->playbackState;
         if ($state && $state->isStopped() && !$state->current_queue_item_id) {
@@ -332,6 +356,78 @@ class RoomPage extends Component
         $this->reorderQueue();
     }
 
+    public function playFromQueue(int $itemId): void
+    {
+        $this->checkPermission('skip');
+        $state = $this->room->playbackState;
+        if (!$state) return;
+
+        $item = QueueItem::where('room_id', $this->room->id)->whereNull('played_at')->find($itemId);
+        if (!$item) return;
+
+        // Mark everything before the clicked item as played (including currently playing)
+        QueueItem::where('room_id', $this->room->id)
+            ->whereNull('played_at')
+            ->where('position', '<', $item->position)
+            ->update(['played_at' => now()]);
+
+        $state->update([
+            'current_queue_item_id' => $item->id,
+            'status' => 'playing',
+            'position_ms' => 0,
+            'started_at' => now(),
+        ]);
+
+        $fresh = $state->fresh();
+        $this->broadcastSync($fresh);
+        $this->dispatch('spotify-sync', [
+            'status' => 'playing',
+            'position_ms' => 0,
+            'server_time' => now()->valueOf(),
+            'track_id' => $item->spotify_track_id,
+            'room_id' => $this->room->id,
+        ]);
+    }
+
+    public function playPrevious(): void
+    {
+        $this->checkPermission('skip');
+        $state = $this->room->playbackState;
+        if (!$state) return;
+
+        $prev = QueueItem::where('room_id', $this->room->id)
+            ->whereNotNull('played_at')
+            ->orderByDesc('played_at')
+            ->first();
+
+        if (!$prev) return;
+
+        $prev->update(['played_at' => null, 'position' => -1]);
+        $this->reorderQueue();
+
+        $state->update([
+            'current_queue_item_id' => $prev->id,
+            'status' => 'playing',
+            'position_ms' => 0,
+            'started_at' => now(),
+        ]);
+
+        $fresh = $state->fresh();
+        $this->broadcastSync($fresh);
+        $this->dispatch('spotify-sync', [
+            'status' => 'playing',
+            'position_ms' => 0,
+            'server_time' => now()->valueOf(),
+            'track_id' => $prev->spotify_track_id,
+            'room_id' => $this->room->id,
+        ]);
+    }
+
+    public function setVolume(int $volume): void
+    {
+        app(SpotifyService::class)->setVolume(Auth::user(), $volume);
+    }
+
     public function promoteMember(int $userId)
     {
         $this->ensureHost();
@@ -355,6 +451,24 @@ class RoomPage extends Component
     {
         $this->ensureHost();
         RoomMember::where('room_id', $this->room->id)->where('user_id', $userId)->update(['left_at' => now()]);
+        $this->permDrawerUserId = null;
+    }
+
+    public function saveSettings(): void
+    {
+        $this->ensureHost();
+        $this->validate([
+            'settingsName' => 'required|string|min:2|max:60',
+            'settingsFallbackUrl' => 'nullable|url',
+        ]);
+
+        $this->room->update([
+            'name' => $this->settingsName,
+            'fallback_playlist_url' => $this->settingsFallbackUrl ?: null,
+        ]);
+
+        $this->showSettings = false;
+        $this->dispatch('notify', message: 'Room settings saved.');
     }
 
     public function endRoom()
@@ -370,19 +484,41 @@ class RoomPage extends Component
         $this->room->playbackState?->update(['status' => 'stopped']);
 
         // Broadcast to all members that room ended
-        broadcast(new PlaybackSync(
-            roomId: $this->room->id,
-            status: 'stopped',
-            positionMs: 0,
-            serverTime: now()->valueOf(),
-            trackId: null,
-        ))->toOthers();
+        try {
+            broadcast(new PlaybackSync(
+                roomId: $this->room->id,
+                status: 'stopped',
+                positionMs: 0,
+                serverTime: now()->valueOf(),
+                trackId: null,
+            ));
+        } catch (\Exception) {}
 
         return redirect()->route('dashboard')->with('success', 'Room ended.');
     }
 
     public function leaveRoom()
     {
+        $myMember = RoomMember::where('room_id', $this->room->id)->where('user_id', Auth::id())->first();
+
+        if ($myMember?->role === 'host') {
+            $next = RoomMember::where('room_id', $this->room->id)
+                ->where('user_id', '!=', Auth::id())
+                ->whereNull('left_at')
+                ->whereIn('role', ['cohost', 'listener'])
+                ->orderByRaw("CASE role WHEN 'cohost' THEN 0 WHEN 'listener' THEN 1 END")
+                ->orderBy('joined_at')
+                ->first();
+
+            if ($next) {
+                $next->update(['role' => 'host']);
+                $this->room->update(['host_user_id' => $next->user_id]);
+            } else {
+                $this->room->update(['status' => 'ended', 'ended_at' => now()]);
+                $this->room->playbackState?->update(['status' => 'stopped']);
+            }
+        }
+
         RoomMember::where('room_id', $this->room->id)->where('user_id', Auth::id())->update(['left_at' => now()]);
         return redirect()->route('dashboard');
     }
@@ -521,6 +657,25 @@ class RoomPage extends Component
 
         $myMember = RoomMember::where('room_id', $this->room->id)->where('user_id', Auth::id())->first();
 
+        $history = QueueItem::where('room_id', $this->room->id)
+            ->whereNotNull('played_at')
+            ->orderByDesc('played_at')
+            ->limit(5)
+            ->get();
+
+        $drawerMember = null;
+        $drawerPerms = null;
+        if ($this->permDrawerUserId) {
+            $drawerMember = RoomMember::with('user')
+                ->where('room_id', $this->room->id)
+                ->where('user_id', $this->permDrawerUserId)
+                ->whereNull('left_at')
+                ->first();
+            if ($drawerMember) {
+                $drawerPerms = $this->room->permissionsFor($drawerMember->user);
+            }
+        }
+
         return view('livewire.room', [
             'room' => $this->room,
             'state' => $this->room->playbackState,
@@ -529,6 +684,9 @@ class RoomPage extends Component
             'myPerms' => $this->room->permissionsFor(Auth::user()),
             'isHost' => $myMember?->role === 'host',
             'myMember' => $myMember,
+            'drawerMember' => $drawerMember,
+            'drawerPerms' => $drawerPerms,
+            'history' => $history,
         ])->layout('layouts.app', [
             'pageTitle' => $this->room->name . ' — Tuneroom',
             'pageDescription' => 'Join ' . $this->room->name . ' and listen together in perfect sync. Room code: ' . $this->room->code,

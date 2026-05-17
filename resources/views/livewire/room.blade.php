@@ -1,3 +1,12 @@
+<style>
+@keyframes eq1 { 0%,100%{height:4px} 50%{height:14px} }
+@keyframes eq2 { 0%,100%{height:12px} 33%{height:4px} 66%{height:14px} }
+@keyframes eq3 { 0%,100%{height:7px} 25%{height:14px} 75%{height:3px} }
+.eq-bar-1{animation:eq1 .8s ease-in-out infinite}
+.eq-bar-2{animation:eq2 .65s ease-in-out infinite}
+.eq-bar-3{animation:eq3 .9s ease-in-out infinite}
+</style>
+
 <div class="h-screen bg-[#0f0d0b] flex flex-col overflow-hidden"
      x-data="{ showAddModal: @entangle('showAddModal'), permDrawer: @entangle('permDrawerUserId') }">
 
@@ -20,6 +29,16 @@
             </div>
             <span
                 class="text-xs text-white/30">Hosted by {{ $room->host->name }} · {{ $members->count() }} listening</span>
+            @if(auth()->user()->hasSpotifyConnected())
+                <span class="flex items-center gap-1 text-[11px] text-green-400/70">
+                    <span class="w-1.5 h-1.5 rounded-full bg-green-400"></span>Spotify
+                </span>
+            @else
+                <a href="{{ route('auth.spotify.connect') }}"
+                   class="flex items-center gap-1 text-[11px] text-orange-400 hover:text-orange-300 transition-colors">
+                    <span class="w-1.5 h-1.5 rounded-full bg-orange-400"></span>Connect Spotify
+                </a>
+            @endif
         </div>
         <div class="flex items-center gap-3">
             <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/[0.05] border border-white/[0.08]">
@@ -68,9 +87,33 @@
                 @endif
             </div>
             <div class="flex-1 overflow-y-auto py-2" id="queue-list">
+                @if($state && $state->currentQueueItem)
+                    <div class="flex items-center gap-2 px-3 py-2.5 bg-orange-400/[0.06] border-b border-white/[0.04]">
+                        <div class="w-5 flex items-end justify-center gap-[2px] shrink-0" style="height:16px">
+                            @if($state->isPlaying())
+                                <div class="w-[3px] bg-orange-400 rounded-sm eq-bar-1" style="height:6px"></div>
+                                <div class="w-[3px] bg-orange-400 rounded-sm eq-bar-2" style="height:12px"></div>
+                                <div class="w-[3px] bg-orange-400 rounded-sm eq-bar-3" style="height:8px"></div>
+                            @else
+                                <div class="w-[3px] bg-white/20 rounded-sm" style="height:6px"></div>
+                                <div class="w-[3px] bg-white/20 rounded-sm" style="height:12px"></div>
+                                <div class="w-[3px] bg-white/20 rounded-sm" style="height:8px"></div>
+                            @endif
+                        </div>
+                        <div class="w-9 h-9 rounded-md shrink-0 bg-gradient-to-br from-orange-500/40 to-purple-600/40 flex items-center justify-center overflow-hidden">
+                            @if($state->currentQueueItem->cover_url)
+                                <img src="{{ $state->currentQueueItem->cover_url }}" class="w-full h-full rounded-md object-cover"/>
+                            @endif
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="text-xs font-semibold truncate text-orange-200">{{ $state->currentQueueItem->title }}</div>
+                            <div class="text-[11px] text-white/40 truncate">{{ $state->currentQueueItem->artist }}</div>
+                        </div>
+                    </div>
+                @endif
                 @forelse($queue as $i => $item)
                     <div
-                        class="flex items-center gap-2 px-3 py-2.5 {{ $i === 0 ? 'bg-white/[0.04]' : 'hover:bg-white/[0.02] drag-handle cursor-grab active:cursor-grabbing' }} group transition-colors"
+                        class="flex items-center gap-2 px-3 py-2.5 hover:bg-white/[0.02] drag-handle cursor-grab active:cursor-grabbing group transition-colors"
                         data-item-id="{{ $item->id }}" data-index="{{ $i }}">
                         <div class="w-5 text-center shrink-0">
                             <span class="text-[11px] text-white/20 font-mono">{{ $i + 1 }}</span>
@@ -107,6 +150,15 @@
                             </div>
                         </div>
                         <div class="flex items-center gap-1.5 shrink-0">
+                            @if($myPerms['skip'] && $i > 0)
+                                <button wire:click="playFromQueue({{ $item->id }})"
+                                        class="opacity-0 group-hover:opacity-100 text-white/30 hover:text-orange-400 transition-all"
+                                        title="Play now">
+                                    <svg class="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                                        <path d="M5 3l12 7-12 7V3z"/>
+                                    </svg>
+                                </button>
+                            @endif
                             <span class="text-[11px] text-white/30 font-mono">{{ $item->durationFormatted() }}</span>
                             @if($myPerms['skip'])
                                 <button wire:click="removeFromQueue({{ $item->id }})"
@@ -127,6 +179,24 @@
                     </div>
                 @endforelse
             </div>
+            @if($history->isNotEmpty())
+                <div class="border-t border-white/[0.06] py-2">
+                    <div class="px-5 py-2 text-[10px] font-semibold uppercase tracking-widest text-white/20">Recently played</div>
+                    @foreach($history as $item)
+                        <div class="flex items-center gap-2 px-3 py-2 opacity-40">
+                            <div class="w-7 h-7 rounded shrink-0 bg-white/5 overflow-hidden">
+                                @if($item->cover_url)
+                                    <img src="{{ $item->cover_url }}" class="w-full h-full object-cover"/>
+                                @endif
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="text-xs truncate">{{ $item->title }}</div>
+                                <div class="text-[10px] text-white/50 truncate">{{ $item->artist }}</div>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            @endif
         </aside>
 
         {{-- ── Now playing column ───────────────────────────────────── --}}
@@ -170,6 +240,22 @@
                     </div>
                 </div>
             </div>
+            @if($noDevice)
+                <div class="flex items-center gap-3 px-4 py-3 rounded-xl bg-orange-500/10 border border-orange-500/20 text-sm z-10 max-w-md w-full">
+                    <svg class="w-4 h-4 text-orange-400 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/>
+                    </svg>
+                    <div class="flex-1 min-w-0">
+                        <span class="text-orange-300 font-medium">No active Spotify device</span>
+                        <span class="text-white/50 ml-1.5">Open Spotify on any device to start listening.</span>
+                    </div>
+                    <a href="https://open.spotify.com" target="_blank"
+                       class="text-xs text-orange-400 hover:text-orange-300 font-medium shrink-0 transition-colors">
+                        Open →
+                    </a>
+                </div>
+            @endif
+
             <div class="w-full max-w-md z-10">
                 @php
                     $duration = $state?->currentQueueItem?->duration_ms ?? 1;
@@ -197,16 +283,10 @@
                     </div>
                 </div>
                 <div class="flex items-center justify-center gap-4">
-                    <div
-                        class="flex items-center gap-1 bg-white/[0.05] border border-white/[0.08] rounded-full px-2 py-1.5">
-                        @foreach(['🔥', '💜', '🎸', '✨', '🎧', '🙌'] as $emoji)
-                            <button
-                                class="w-7 h-7 rounded-full hover:bg-white/10 transition-colors text-sm flex items-center justify-center">{{ $emoji }}</button>
-                        @endforeach
-                    </div>
                     @if($myPerms['skip'])
-                        <button
-                            class="w-10 h-10 rounded-full bg-white/[0.06] border border-white/[0.08] flex items-center justify-center text-white/50 hover:text-white hover:bg-white/[0.1] transition-all">
+                        <button wire:click="playPrevious"
+                                @class(['w-10 h-10 rounded-full bg-white/[0.06] border border-white/[0.08] flex items-center justify-center transition-all', 'text-white/50 hover:text-white hover:bg-white/[0.1]' => $history->isNotEmpty(), 'text-white/20 cursor-not-allowed' => $history->isEmpty()])
+                                @if($history->isEmpty()) disabled @endif>
                             <svg class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                                 <path d="M16 4L6 10l10 6V4z"/>
                                 <rect x="4" y="4" width="2" height="12" rx="0.5"/>
@@ -243,7 +323,8 @@
                             <path d="M3 8v4h3l4 3V5L6 8H3z" fill="currentColor"/>
                             <path d="M14 7a4 4 0 010 6"/>
                         </svg>
-                        <input type="range" min="0" max="100" value="80" class="w-20 accent-orange-400"/>
+                        <input type="range" min="0" max="100" value="80" class="w-20 accent-orange-400"
+                               x-on:change="$wire.setVolume(parseInt($event.target.value))"/>
                     </div>
                 </div>
                 @if($queue->count() > 1)
@@ -262,7 +343,17 @@
                         <div class="text-sm font-semibold">In the room</div>
                         <div class="text-[11px] text-white/30 mt-0.5">{{ $members->count() }} of 10</div>
                     </div>
-                    <button wire:click="$set('showMembers', false)"
+                    <div class="flex items-center gap-2">
+                        @if($isHost)
+                            <button wire:click="$set('showSettings', true)"
+                                    class="text-white/20 hover:text-white/60 transition-colors" title="Room settings">
+                                <svg class="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+                                    <circle cx="10" cy="10" r="2.5"/>
+                                    <path d="M10 2v2M10 16v2M18 10h-2M4 10H2M15.5 4.5l-1.4 1.4M5.9 14.1l-1.4 1.4M15.5 15.5l-1.4-1.4M5.9 5.9L4.5 4.5"/>
+                                </svg>
+                            </button>
+                        @endif
+                        <button wire:click="$set('showMembers', false)"
                             class="text-white/20 hover:text-white/60 transition-colors">
                         <svg class="w-4 h-4" viewBox="0 0 20 20" stroke="currentColor" stroke-width="1.8"
                              stroke-linecap="round" fill="none">
@@ -353,6 +444,142 @@
                     <path d="M13 4a3 3 0 010 6M13 12c2.8 0 5 2.2 5 5"/>
                 </svg>
             </button>
+        @endif
+    </div>
+
+    {{-- ── Room settings modal ────────────────────────────────────── --}}
+    @if($showSettings)
+        <div class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 px-4"
+             wire:click.self="$set('showSettings', false)">
+            <div class="w-full max-w-md bg-[#1a1715] border border-white/[0.16] rounded-2xl overflow-hidden shadow-2xl">
+                <div class="flex items-center justify-between px-5 py-4 border-b border-white/[0.08]">
+                    <span class="text-sm font-semibold">Room settings</span>
+                    <button wire:click="$set('showSettings', false)" class="text-white/20 hover:text-white/60 transition-colors">
+                        <svg class="w-4 h-4" viewBox="0 0 20 20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none">
+                            <path d="M5 5l10 10M15 5L5 15"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="px-5 py-5 space-y-5">
+                    <div>
+                        <label class="block text-xs font-semibold text-white/50 uppercase tracking-wider mb-2">Room name</label>
+                        <input wire:model="settingsName" type="text"
+                               class="w-full bg-[#0f0d0b] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/20 focus:outline-none focus:border-orange-400/50 transition-colors"/>
+                        @error('settingsName')
+                            <p class="text-red-400 text-xs mt-1.5">{{ $message }}</p>
+                        @enderror
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-white/50 uppercase tracking-wider mb-2">Fallback playlist</label>
+                        <input wire:model="settingsFallbackUrl" type="text"
+                               placeholder="Spotify playlist link..."
+                               class="w-full bg-[#0f0d0b] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/20 focus:outline-none focus:border-orange-400/50 transition-colors font-mono"/>
+                        @error('settingsFallbackUrl')
+                            <p class="text-red-400 text-xs mt-1.5">{{ $message }}</p>
+                        @enderror
+                    </div>
+                </div>
+                <div class="px-5 pb-5 flex gap-3">
+                    <button wire:click="$set('showSettings', false)"
+                            class="flex-1 py-2.5 rounded-xl border border-white/[0.08] text-xs font-medium text-white/40 hover:text-white/70 transition-colors">
+                        Cancel
+                    </button>
+                    <button wire:click="saveSettings"
+                            class="flex-1 py-2.5 rounded-xl bg-orange-400 text-[#1a0a00] text-xs font-bold hover:bg-orange-300 transition-colors">
+                        Save changes
+                    </button>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    {{-- ── Permission drawer ──────────────────────────────────────── --}}
+    <div x-show="permDrawer"
+         x-transition:enter="transition-opacity duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition-opacity duration-150"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 z-40 bg-black/40"
+         wire:click="$set('permDrawerUserId', null)"></div>
+
+    <div x-show="permDrawer"
+         x-transition:enter="transition-transform duration-200 ease-out"
+         x-transition:enter-start="translate-x-full"
+         x-transition:enter-end="translate-x-0"
+         x-transition:leave="transition-transform duration-150 ease-in"
+         x-transition:leave-start="translate-x-0"
+         x-transition:leave-end="translate-x-full"
+         class="fixed right-0 top-0 bottom-0 w-[280px] bg-[#1a1715] border-l border-white/[0.12] z-50 flex flex-col shadow-2xl">
+        @if($drawerMember)
+            <div class="flex items-center justify-between px-5 py-4 border-b border-white/[0.08]">
+                <span class="text-sm font-semibold">Member settings</span>
+                <button wire:click="$set('permDrawerUserId', null)" class="text-white/20 hover:text-white/60 transition-colors">
+                    <svg class="w-4 h-4" viewBox="0 0 20 20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none">
+                        <path d="M5 5l10 10M15 5L5 15"/>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="flex items-center gap-3 px-5 py-4 border-b border-white/[0.08]">
+                <div class="w-10 h-10 rounded-full bg-orange-500/20 border border-orange-400/20 flex items-center justify-center text-sm font-bold text-orange-300 overflow-hidden shrink-0">
+                    @if($drawerMember->user->avatar)
+                        <img src="{{ $drawerMember->user->avatar }}" class="w-full h-full object-cover"/>
+                    @else
+                        {{ strtoupper(substr($drawerMember->user->name, 0, 2)) }}
+                    @endif
+                </div>
+                <div class="min-w-0">
+                    <div class="text-sm font-semibold truncate">{{ $drawerMember->user->name }}</div>
+                    <div class="text-xs mt-0.5">
+                        @if($drawerMember->role === 'cohost')
+                            <span class="text-purple-300">Co-host</span>
+                        @else
+                            <span class="text-white/30">Listener</span>
+                        @endif
+                    </div>
+                </div>
+            </div>
+
+            <div class="px-5 py-4 border-b border-white/[0.08]">
+                <div class="text-[11px] font-semibold uppercase tracking-wider text-white/30 mb-3">Role</div>
+                <button wire:click="promoteMember({{ $drawerMember->user_id }})"
+                        class="w-full flex items-center justify-between py-2.5 px-3 rounded-xl bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.06] transition-all text-left">
+                    <span class="text-sm text-white/80">
+                        {{ $drawerMember->role === 'listener' ? 'Promote to co-host' : 'Demote to listener' }}
+                    </span>
+                    @if($drawerMember->role === 'cohost')
+                        <span class="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-purple-400/15 text-purple-300 shrink-0">Co-host</span>
+                    @else
+                        <span class="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-white/[0.06] text-white/30 shrink-0">Listener</span>
+                    @endif
+                </button>
+            </div>
+
+            <div class="px-5 py-4 flex-1">
+                <div class="text-[11px] font-semibold uppercase tracking-wider text-white/30 mb-3">Permissions</div>
+                <div class="space-y-1">
+                    @foreach(['play' => 'Play / Pause', 'skip' => 'Skip songs', 'add' => 'Add to queue'] as $perm => $label)
+                        <button wire:click="togglePermission({{ $drawerMember->user_id }}, '{{ $perm }}')"
+                                class="w-full flex items-center justify-between py-2.5 px-3 rounded-xl hover:bg-white/[0.04] transition-colors">
+                            <span class="text-sm text-white/70">{{ $label }}</span>
+                            <div class="relative w-11 h-6 rounded-full transition-colors duration-150 shrink-0 {{ $drawerPerms[$perm] ? 'bg-orange-400' : 'bg-white/10' }}">
+                                <div class="absolute top-1 left-1 bg-white rounded-full h-4 w-4 transition-transform duration-150 {{ $drawerPerms[$perm] ? 'translate-x-5' : '' }}"></div>
+                            </div>
+                        </button>
+                    @endforeach
+                </div>
+                <p class="text-[11px] text-white/20 mt-4 px-1 leading-relaxed">Overrides role defaults for this member only.</p>
+            </div>
+
+            <div class="px-5 pb-5 pt-2 border-t border-white/[0.08]">
+                <button wire:click="removeMember({{ $drawerMember->user_id }})"
+                        wire:confirm="Remove {{ $drawerMember->user->name }} from the room?"
+                        class="w-full py-2.5 rounded-xl border border-red-500/20 text-xs font-medium text-red-400 hover:bg-red-500/10 hover:border-red-500/40 transition-all">
+                    Remove from room
+                </button>
+            </div>
         @endif
     </div>
 
@@ -509,6 +736,23 @@
         </div>
     @endif
 
+    {{-- ── Toast notifications ────────────────────────────────────── --}}
+    <div class="fixed bottom-5 right-5 z-50 flex flex-col-reverse gap-2 pointer-events-none"
+         x-data="{ toasts: [] }"
+         @notify.window="
+             const id = Date.now();
+             toasts.push({ id, msg: $event.detail.message });
+             setTimeout(() => toasts = toasts.filter(t => t.id !== id), 3000)
+         ">
+        <template x-for="toast in toasts" :key="toast.id">
+            <div x-text="toast.msg"
+                 x-transition:enter="transition ease-out duration-200"
+                 x-transition:enter-start="opacity-0 translate-y-1"
+                 x-transition:enter-end="opacity-100 translate-y-0"
+                 class="px-4 py-2.5 rounded-xl bg-[#1a1715] border border-white/[0.12] text-sm text-white shadow-xl max-w-xs"></div>
+        </template>
+    </div>
+
     {{-- ── Scripts ──────────────────────────────────────────────────── --}}
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
     <script>
@@ -646,15 +890,21 @@
         });
         document.addEventListener('DOMContentLoaded', () => {
             if (typeof Echo === 'undefined') return;
-            Echo.join(`room.{{ $room->id }}`).listen('.playback.sync', (data) => {
-                syncSpotify({
-                    room_id: {{ $room->id }},
-                    status: data.status,
-                    track_id: data.track_id,
-                    position_ms: data.position_ms,
-                    server_time: data.server_time
+            Echo.join(`room.{{ $room->id }}`)
+                .listen('.playback.sync', (data) => {
+                    syncSpotify({
+                        room_id: {{ $room->id }},
+                        status: data.status,
+                        track_id: data.track_id,
+                        position_ms: data.position_ms,
+                        server_time: data.server_time
+                    });
+                })
+                .listen('.queue.updated', (data) => {
+                    window.dispatchEvent(new CustomEvent('notify', {
+                        detail: { message: (data.added_by_name || 'Someone') + ' added ' + (data.track_title || 'a song') }
+                    }));
                 });
-            });
         });
     </script>
 

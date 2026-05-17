@@ -1,5 +1,21 @@
 <div class="min-h-screen bg-[#0f0d0b]">
 
+    @if(session('info'))
+        <div class="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-xl bg-[#1a1715] border border-white/[0.12] text-sm text-white/80 shadow-xl">
+            {{ session('info') }}
+        </div>
+    @endif
+    @if(session('success'))
+        <div class="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-xl bg-[#1a1715] border border-green-500/30 text-sm text-green-300 shadow-xl">
+            {{ session('success') }}
+        </div>
+    @endif
+    @if(session('error'))
+        <div class="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-xl bg-[#1a1715] border border-red-500/30 text-sm text-red-300 shadow-xl">
+            {{ session('error') }}
+        </div>
+    @endif
+
     {{-- Nav --}}
     <nav
         class="sticky top-0 z-50 flex items-center justify-between px-8 h-[60px] border-b border-white/[0.08] bg-[#0f0d0b]">

@@ -82,7 +82,7 @@
 
             <p class="text-center text-xs text-white/30 mt-6">
                 Don't have an account?
-                <a href="{{ route('register') }}" class="text-orange-400 hover:text-orange-300 transition-colors">Create one</a>
+                <a href="{{ route('auth.spotify') }}" class="text-orange-400 hover:text-orange-300 transition-colors">Create one</a>
             </p>
             <p class="text-center text-[11px] text-white/20 mt-2">
                 By continuing you agree to our Terms · Privacy · Community guidelines

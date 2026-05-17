@@ -36,6 +36,15 @@ class CreateRoom extends Component
     {
         $this->validate();
 
+        // Leave any current active room before creating a new one
+        RoomMember::join('rooms', 'rooms.id', '=', 'room_members.room_id')
+            ->where('rooms.status', 'active')
+            ->where('room_members.user_id', Auth::id())
+            ->whereNull('room_members.left_at')
+            ->select('room_members.*')
+            ->get()
+            ->each(fn($m) => $m->update(['left_at' => now()]));
+
         $room = Room::create([
             'name' => $this->name,
             'host_user_id' => Auth::id(),

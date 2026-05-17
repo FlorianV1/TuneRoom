@@ -100,10 +100,13 @@ class SpotifyService
      * Tell Spotify to start playing a track at a specific position.
      * Called on each room member's behalf when sync broadcasts.
      */
-    public function play(User $user, string $spotifyTrackId, int $positionMs = 0): bool
+    /**
+     * Returns 'ok', 'no_device', or 'error'.
+     */
+    public function play(User $user, string $spotifyTrackId, int $positionMs = 0): string
     {
         $token = $this->tokens->getValidToken($user);
-        if (!$token) return false;
+        if (!$token) return 'error';
 
         $response = Http::withToken($token)
             ->put('https://api.spotify.com/v1/me/player/play', [
@@ -111,7 +114,8 @@ class SpotifyService
                 'position_ms' => $positionMs,
             ]);
 
-        return $response->successful() || $response->status() === 204;
+        if ($response->status() === 404) return 'no_device';
+        return ($response->successful() || $response->status() === 204) ? 'ok' : 'error';
     }
 
     /**
@@ -124,6 +128,21 @@ class SpotifyService
 
         $response = Http::withToken($token)
             ->put('https://api.spotify.com/v1/me/player/pause');
+
+        return $response->successful() || $response->status() === 204;
+    }
+
+    /**
+     * Set the playback volume (0–100) on the user's active Spotify device.
+     */
+    public function setVolume(User $user, int $volumePercent): bool
+    {
+        $token = $this->tokens->getValidToken($user);
+        if (!$token) return false;
+
+        $volume = max(0, min(100, $volumePercent));
+        $response = Http::withToken($token)
+            ->put("https://api.spotify.com/v1/me/player/volume?volume_percent={$volume}");
 
         return $response->successful() || $response->status() === 204;
     }
