@@ -25,7 +25,8 @@
       "Bash(Get-Content .env)",
       "Bash(Select-String -Pattern \"REVERB|VITE_REVERB|BROADCAST\")",
       "PowerShell(icacls \"C:\\\\Users\\\\Florian\\\\Herd\\\\Tuneroom\\\\storage\" /grant \"Everyone:\\(OI\\)\\(CI\\)F\" /T 2>&1 | Select-Object -Last 5)",
-      "PowerShell(Head 10 *)"
+      "PowerShell(Head 10 *)",
+      "PowerShell(Get-Command *)"
     ]
   }
 }
