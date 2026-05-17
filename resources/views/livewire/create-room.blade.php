@@ -88,6 +88,23 @@
             </div>
         </div>
 
+        <div class="mb-8">
+            <label class="block text-sm font-semibold mb-1">Visibility</label>
+            <p class="text-xs text-white/40 mb-3">Public rooms appear in the browse page so anyone can join.</p>
+            <div class="flex gap-3">
+                <button type="button" wire:click="$set('visibility', 'invite')"
+                        @class(['flex-1 py-3 rounded-xl border text-sm font-medium transition-all text-left px-4', 'border-orange-400/50 bg-orange-400/10 text-orange-300' => $visibility === 'invite', 'border-white/[0.08] text-white/40 hover:border-white/[0.16] hover:text-white/70' => $visibility !== 'invite'])>
+                    <div class="font-semibold">Private</div>
+                    <div class="text-xs opacity-60 mt-0.5">Invite only via link or code</div>
+                </button>
+                <button type="button" wire:click="$set('visibility', 'public')"
+                        @class(['flex-1 py-3 rounded-xl border text-sm font-medium transition-all text-left px-4', 'border-orange-400/50 bg-orange-400/10 text-orange-300' => $visibility === 'public', 'border-white/[0.08] text-white/40 hover:border-white/[0.16] hover:text-white/70' => $visibility !== 'public'])>
+                    <div class="font-semibold">Public</div>
+                    <div class="text-xs opacity-60 mt-0.5">Listed on the browse page</div>
+                </button>
+            </div>
+        </div>
+
         <button wire:click="create" wire:loading.attr="disabled"
                 class="w-full py-3.5 rounded-xl bg-orange-400 text-[#1a0a00] text-sm font-bold hover:bg-orange-300 transition-colors disabled:opacity-50">
             <span wire:loading.remove>Create room →</span>

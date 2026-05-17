@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Auth\SpotifyController;
 use App\Http\Controllers\SyncPlaybackController;
+use App\Livewire\Browse;
 use App\Livewire\CreateRoom;
 use App\Livewire\Dashboard;
 use App\Livewire\JoinRoom;
@@ -20,6 +21,7 @@ Route::get('/auth/spotify/callback', [SpotifyController::class, 'callback'])->na
 Route::middleware('auth')->group(function () {
 
     Route::get('/dashboard', Dashboard::class)->name('dashboard');
+    Route::get('/rooms/browse', Browse::class)->name('rooms.browse');
     Route::get('/rooms/create', CreateRoom::class)->name('rooms.create');
     Route::get('/rooms/join', JoinRoom::class)->name('rooms.join');
     Route::post('/rooms/sync-playback', [SyncPlaybackController::class, '__invoke'])->name('rooms.sync-playback');

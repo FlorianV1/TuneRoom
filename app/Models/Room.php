@@ -23,6 +23,7 @@ class Room extends Model
         'default_cohost_permissions',
         'default_listener_permissions',
         'status',
+        'visibility',
         'ended_at',
     ];
 

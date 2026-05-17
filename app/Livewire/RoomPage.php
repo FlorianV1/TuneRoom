@@ -20,6 +20,7 @@ class RoomPage extends Component
     public bool $showSettings = false;
     public string $settingsName = '';
     public string $settingsFallbackUrl = '';
+    public string $settingsVisibility = 'invite';
     public ?int $permDrawerUserId = null;
     public string $searchQuery = '';
     public array $searchResults = [];
@@ -146,6 +147,7 @@ class RoomPage extends Component
         $this->room = $room;
         $this->settingsName = $room->name;
         $this->settingsFallbackUrl = $room->fallback_playlist_url ?? '';
+        $this->settingsVisibility = $room->visibility ?? 'invite';
         $this->maybeLoadFallback();
 
         // Preload favorites in background so modal opens instantly
@@ -225,7 +227,7 @@ class RoomPage extends Component
 
     public function addTrack(string $spotifyTrackId, string $title, string $artist, string $album, string $coverUrl, int $durationMs)
     {
-        $this->checkPermission('add');
+        if (!$this->checkPermission('add')) return;
 
         // Insert before fallback songs so user songs always have priority
         $firstFallback = QueueItem::where('room_id', $this->room->id)
@@ -293,7 +295,7 @@ class RoomPage extends Component
 
     public function togglePlay()
     {
-        $this->checkPermission('play');
+        if (!$this->checkPermission('play')) return;
         $state = $this->room->playbackState;
         if (!$state) return;
 
@@ -319,7 +321,7 @@ class RoomPage extends Component
 
     public function skipNext()
     {
-        $this->checkPermission('skip');
+        if (!$this->checkPermission('skip')) return;
         $this->advanceQueue();
         $fresh = $this->room->playbackState->fresh();
         $this->broadcastSync($fresh);
@@ -351,14 +353,14 @@ class RoomPage extends Component
 
     public function removeFromQueue(int $itemId)
     {
-        $this->checkPermission('skip');
+        if (!$this->checkPermission('skip')) return;
         QueueItem::where('id', $itemId)->where('room_id', $this->room->id)->whereNull('played_at')->delete();
         $this->reorderQueue();
     }
 
     public function playFromQueue(int $itemId): void
     {
-        $this->checkPermission('skip');
+        if (!$this->checkPermission('skip')) return;
         $state = $this->room->playbackState;
         if (!$state) return;
 
@@ -391,7 +393,7 @@ class RoomPage extends Component
 
     public function playPrevious(): void
     {
-        $this->checkPermission('skip');
+        if (!$this->checkPermission('skip')) return;
         $state = $this->room->playbackState;
         if (!$state) return;
 
@@ -460,11 +462,13 @@ class RoomPage extends Component
         $this->validate([
             'settingsName' => 'required|string|min:2|max:60',
             'settingsFallbackUrl' => 'nullable|url',
+            'settingsVisibility' => 'in:invite,public',
         ]);
 
         $this->room->update([
             'name' => $this->settingsName,
             'fallback_playlist_url' => $this->settingsFallbackUrl ?: null,
+            'visibility' => $this->settingsVisibility,
         ]);
 
         $this->showSettings = false;
@@ -523,11 +527,13 @@ class RoomPage extends Component
         return redirect()->route('dashboard');
     }
 
-    private function checkPermission(string $permission): void
+    private function checkPermission(string $permission): bool
     {
         if (!$this->room->userCan(Auth::user(), $permission)) {
             $this->dispatch('notify', message: "You don't have permission to do that.");
+            return false;
         }
+        return true;
     }
 
     private function ensureHost(): void

@@ -75,6 +75,10 @@
                class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-[#1a1715] border border-white/[0.16] text-sm font-medium hover:bg-[#221e1b] transition-colors">
                 Join a room
             </a>
+            <a href="{{ route('rooms.browse') }}"
+               class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-[#1a1715] border border-white/[0.16] text-sm font-medium hover:bg-[#221e1b] transition-colors">
+                Browse public rooms
+            </a>
         </div>
 
         {{-- Your rooms --}}

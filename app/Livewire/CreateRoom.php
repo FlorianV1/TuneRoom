@@ -28,7 +28,7 @@ class CreateRoom extends Component
         return [
             'name' => 'required|string|min:2|max:60',
             'fallback_playlist_url' => 'nullable|url',
-            'visibility' => 'in:invite,friends,public',
+            'visibility' => 'in:invite,public',
         ];
     }
 
@@ -48,6 +48,7 @@ class CreateRoom extends Component
         $room = Room::create([
             'name' => $this->name,
             'host_user_id' => Auth::id(),
+            'visibility' => $this->visibility,
             'fallback_playlist_url' => $this->fallback_playlist_url ?: null,
             'default_cohost_permissions' => [
                 'play' => $this->cohost_play,

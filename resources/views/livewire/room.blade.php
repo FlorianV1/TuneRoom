@@ -29,16 +29,9 @@
             </div>
             <span
                 class="text-xs text-white/30">Hosted by {{ $room->host->name }} · {{ $members->count() }} listening</span>
-            @if(auth()->user()->hasSpotifyConnected())
-                <span class="flex items-center gap-1 text-[11px] text-green-400/70">
-                    <span class="w-1.5 h-1.5 rounded-full bg-green-400"></span>Spotify
-                </span>
-            @else
-                <a href="{{ route('auth.spotify.connect') }}"
-                   class="flex items-center gap-1 text-[11px] text-orange-400 hover:text-orange-300 transition-colors">
-                    <span class="w-1.5 h-1.5 rounded-full bg-orange-400"></span>Connect Spotify
-                </a>
-            @endif
+            <span class="flex items-center gap-1 text-[11px] text-green-400/70">
+                <span class="w-1.5 h-1.5 rounded-full bg-green-400"></span>Spotify
+            </span>
         </div>
         <div class="flex items-center gap-3">
             <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/[0.05] border border-white/[0.08]">
@@ -361,7 +354,8 @@
                         </svg>
                     </button>
                 </div>
-                <div class="flex-1 overflow-y-auto">
+            </div>
+            <div class="flex-1 overflow-y-auto">
                     @foreach($members as $member)
                         @php
                             $isYou = $member->id === auth()->id();
@@ -468,6 +462,20 @@
                         @error('settingsName')
                             <p class="text-red-400 text-xs mt-1.5">{{ $message }}</p>
                         @enderror
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-white/50 uppercase tracking-wider mb-2">Visibility</label>
+                        <div class="flex gap-2">
+                            <button type="button" wire:click="$set('settingsVisibility', 'invite')"
+                                    @class(['flex-1 py-2 rounded-xl border text-xs font-medium transition-all', 'border-orange-400/50 bg-orange-400/10 text-orange-300' => $settingsVisibility === 'invite', 'border-white/[0.08] text-white/40 hover:text-white/60' => $settingsVisibility !== 'invite'])>
+                                Private
+                            </button>
+                            <button type="button" wire:click="$set('settingsVisibility', 'public')"
+                                    @class(['flex-1 py-2 rounded-xl border text-xs font-medium transition-all', 'border-orange-400/50 bg-orange-400/10 text-orange-300' => $settingsVisibility === 'public', 'border-white/[0.08] text-white/40 hover:text-white/60' => $settingsVisibility !== 'public'])>
+                                Public
+                            </button>
+                        </div>
+                        <p class="text-[11px] text-white/20 mt-1.5">Public rooms appear in the browse page.</p>
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-white/50 uppercase tracking-wider mb-2">Fallback playlist</label>
