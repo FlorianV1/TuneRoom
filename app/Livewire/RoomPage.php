@@ -121,10 +121,9 @@ class RoomPage extends Component
 
         $member = RoomMember::where('room_id', $room->id)
             ->where('user_id', Auth::id())
-            ->whereNull('left_at')
             ->first();
 
-        if (!$member) {
+        if (!$member || $member->left_at !== null) {
             // Check room isn't full
             $memberCount = RoomMember::where('room_id', $room->id)
                 ->whereNull('left_at')
@@ -136,12 +135,19 @@ class RoomPage extends Component
                 return;
             }
 
-            RoomMember::create([
-                'room_id' => $room->id,
-                'user_id' => Auth::id(),
-                'role' => 'listener',
-                'joined_at' => now(),
-            ]);
+            if ($member) {
+                $member->update([
+                    'left_at' => null,
+                    'joined_at' => now(),
+                ]);
+            } else {
+                RoomMember::create([
+                    'room_id' => $room->id,
+                    'user_id' => Auth::id(),
+                    'role' => 'listener',
+                    'joined_at' => now(),
+                ]);
+            }
         }
 
         $this->room = $room;
@@ -242,7 +248,7 @@ class RoomPage extends Component
                 ->whereNull('played_at')
                 ->where('source', 'fallback')
                 ->increment('position');
-            $position = $firstFallback->position - 1;
+            $position = $firstFallback->position;
         } else {
             $position = QueueItem::where('room_id', $this->room->id)
                 ->whereNull('played_at')
@@ -299,14 +305,31 @@ class RoomPage extends Component
         $state = $this->room->playbackState;
         if (!$state) return;
 
-        $newStatus = $state->isPlaying() ? 'paused' : 'playing';
-        $state->update([
-            'status' => $newStatus,
-            'position_ms' => $state->currentPositionMs(),
-            'started_at' => $newStatus === 'playing' ? now() : $state->started_at,
-        ]);
+        $state->load('currentQueueItem');
+
+        if ($state->isPlaying()) {
+            $state->update([
+                'status' => 'paused',
+                'position_ms' => $this->boundedPositionMs($state),
+                'started_at' => null,
+            ]);
+        } else {
+            $state = $this->ensurePlayableTrack($state);
+
+            if (!$state) {
+                $this->dispatch('notify', message: 'Queue is empty. Add a song or set a fallback playlist.');
+                return;
+            }
+
+            $state->update([
+                'status' => 'playing',
+                'position_ms' => $state->isPaused() ? $state->position_ms : 0,
+                'started_at' => now(),
+            ]);
+        }
 
         $fresh = $state->fresh();
+        $fresh?->load('currentQueueItem');
         $this->broadcastSync($fresh);
 
         // Also dispatch directly to this user's browser
@@ -324,6 +347,7 @@ class RoomPage extends Component
         if (!$this->checkPermission('skip')) return;
         $this->advanceQueue();
         $fresh = $this->room->playbackState->fresh();
+        $fresh?->load('currentQueueItem');
         $this->broadcastSync($fresh);
 
         $this->dispatch('spotify-sync', [
@@ -333,6 +357,10 @@ class RoomPage extends Component
             'track_id' => $fresh->currentQueueItem?->spotify_track_id,
             'room_id' => $this->room->id,
         ]);
+
+        if (!$fresh->currentQueueItem) {
+            $this->dispatch('notify', message: 'Queue is empty. Add a song to keep listening.');
+        }
     }
 
     private function broadcastSync($state): void
@@ -402,9 +430,16 @@ class RoomPage extends Component
             ->orderByDesc('played_at')
             ->first();
 
-        if (!$prev) return;
+        if (!$prev) {
+            $this->dispatch('notify', message: 'No previous song yet.');
+            return;
+        }
 
-        $prev->update(['played_at' => null, 'position' => -1]);
+        QueueItem::where('room_id', $this->room->id)
+            ->whereNull('played_at')
+            ->increment('position');
+
+        $prev->update(['played_at' => null, 'position' => 0]);
         $this->reorderQueue();
 
         $state->update([
@@ -572,6 +607,60 @@ class RoomPage extends Component
         $this->topUpFallback();
     }
 
+    private function ensurePlayableTrack($state)
+    {
+        $state->load('currentQueueItem');
+
+        if ($state->currentQueueItem && is_null($state->currentQueueItem->played_at)) {
+            return $state;
+        }
+
+        if ($state->current_queue_item_id) {
+            $state->update([
+                'current_queue_item_id' => null,
+                'status' => 'stopped',
+                'position_ms' => 0,
+                'started_at' => null,
+            ]);
+        }
+
+        $next = QueueItem::where('room_id', $this->room->id)
+            ->whereNull('played_at')
+            ->orderBy('position')
+            ->first();
+
+        if (!$next && $this->room->fallback_playlist_url) {
+            $next = $this->loadFallbackTracks();
+        }
+
+        if (!$next) {
+            return null;
+        }
+
+        $state->update([
+            'current_queue_item_id' => $next->id,
+            'status' => 'stopped',
+            'position_ms' => 0,
+            'started_at' => null,
+        ]);
+
+        $this->topUpFallback();
+
+        return $state->fresh(['currentQueueItem']);
+    }
+
+    private function boundedPositionMs($state): int
+    {
+        $position = $state->currentPositionMs();
+        $duration = $state->currentQueueItem?->duration_ms;
+
+        if (!$duration) {
+            return max(0, $position);
+        }
+
+        return max(0, min($position, $duration));
+    }
+
     private function topUpFallback(): void
     {
         if (!$this->room->fallback_playlist_url) return;
@@ -682,10 +771,15 @@ class RoomPage extends Component
             }
         }
 
+        $upcoming = $this->room->upcomingQueue;
+        $currentId = $this->room->playbackState?->current_queue_item_id;
+
         return view('livewire.room', [
             'room' => $this->room,
             'state' => $this->room->playbackState,
-            'queue' => $this->room->upcomingQueue->skip(1)->values(), // skip currently playing
+            'queue' => $currentId
+                ? $upcoming->reject(fn($item) => $item->id === $currentId)->values()
+                : $upcoming->values(),
             'members' => $this->room->activeMembers,
             'myPerms' => $this->room->permissionsFor(Auth::user()),
             'isHost' => $myMember?->role === 'host',

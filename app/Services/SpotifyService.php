@@ -105,6 +105,9 @@ class SpotifyService
      */
     public function play(User $user, string $spotifyTrackId, int $positionMs = 0): string
     {
+        $spotifyTrackId = $this->extractTrackId($spotifyTrackId);
+        if ($spotifyTrackId === '') return 'error';
+
         $token = $this->tokens->getValidToken($user);
         if (!$token) return 'error';
 

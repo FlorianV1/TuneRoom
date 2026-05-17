@@ -29,9 +29,29 @@ class SyncPlaybackController extends Controller
         $trackId = $validated['track_id'];
         $status = $validated['status'];
 
-        if ($status === 'playing' && $trackId) {
-            $spotify->play($user, $trackId, $positionMs);
-        } elseif ($status === 'paused') {
+        if ($status === 'playing') {
+            if (!$trackId) {
+                return response()->json([
+                    'ok' => false,
+                    'error' => 'missing_track',
+                    'message' => 'No track is selected for playback.',
+                    'latency_ms' => $latencyMs,
+                ], 422);
+            }
+
+            $result = $spotify->play($user, $trackId, $positionMs);
+
+            if ($result !== 'ok') {
+                return response()->json([
+                    'ok' => false,
+                    'error' => $result,
+                    'message' => $result === 'no_device'
+                        ? 'No active Spotify device found.'
+                        : 'Spotify could not start playback.',
+                    'latency_ms' => $latencyMs,
+                ], $result === 'no_device' ? 409 : 422);
+            }
+        } elseif (in_array($status, ['paused', 'stopped'], true)) {
             $spotify->pause($user);
         }
 

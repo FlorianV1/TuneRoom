@@ -1,14 +1,12 @@
-<style>
-@keyframes eq1 { 0%,100%{height:4px} 50%{height:14px} }
-@keyframes eq2 { 0%,100%{height:12px} 33%{height:4px} 66%{height:14px} }
-@keyframes eq3 { 0%,100%{height:7px} 25%{height:14px} 75%{height:3px} }
-.eq-bar-1{animation:eq1 .8s ease-in-out infinite}
-.eq-bar-2{animation:eq2 .65s ease-in-out infinite}
-.eq-bar-3{animation:eq3 .9s ease-in-out infinite}
-</style>
-
-<div class="h-screen bg-[#0f0d0b] flex flex-col overflow-hidden"
-     x-data="{ showAddModal: @entangle('showAddModal'), permDrawer: @entangle('permDrawerUserId') }">
+<div class="h-screen bg-[#0f0d0b] flex flex-col overflow-hidden" x-data>
+    <style>
+    @keyframes eq1 { 0%,100%{height:4px} 50%{height:14px} }
+    @keyframes eq2 { 0%,100%{height:12px} 33%{height:4px} 66%{height:14px} }
+    @keyframes eq3 { 0%,100%{height:7px} 25%{height:14px} 75%{height:3px} }
+    .eq-bar-1{animation:eq1 .8s ease-in-out infinite}
+    .eq-bar-2{animation:eq2 .65s ease-in-out infinite}
+    .eq-bar-3{animation:eq3 .9s ease-in-out infinite}
+    </style>
 
     {{-- ── Top bar ──────────────────────────────────────────────────── --}}
     <header class="flex items-center justify-between px-5 h-14 border-b border-white/[0.08] shrink-0">
@@ -143,7 +141,7 @@
                             </div>
                         </div>
                         <div class="flex items-center gap-1.5 shrink-0">
-                            @if($myPerms['skip'] && $i > 0)
+                            @if($myPerms['skip'])
                                 <button wire:click="playFromQueue({{ $item->id }})"
                                         class="opacity-0 group-hover:opacity-100 text-white/30 hover:text-orange-400 transition-all"
                                         title="Play now">
@@ -320,9 +318,9 @@
                                x-on:change="$wire.setVolume(parseInt($event.target.value))"/>
                     </div>
                 </div>
-                @if($queue->count() > 1)
+                @if($queue->isNotEmpty())
                     <div class="text-center mt-4 text-xs text-white/30">
-                        Up next <span class="text-white/50 font-medium">{{ $queue->skip(1)->first()?->title }}</span>
+                        Up next <span class="text-white/50 font-medium">{{ $queue->first()?->title }}</span>
                     </div>
                 @endif
             </div>
@@ -502,25 +500,11 @@
     @endif
 
     {{-- ── Permission drawer ──────────────────────────────────────── --}}
-    <div x-show="permDrawer"
-         x-transition:enter="transition-opacity duration-200"
-         x-transition:enter-start="opacity-0"
-         x-transition:enter-end="opacity-100"
-         x-transition:leave="transition-opacity duration-150"
-         x-transition:leave-start="opacity-100"
-         x-transition:leave-end="opacity-0"
-         class="fixed inset-0 z-40 bg-black/40"
+    @if($drawerMember)
+    <div class="fixed inset-0 z-40 bg-black/40"
          wire:click="$set('permDrawerUserId', null)"></div>
 
-    <div x-show="permDrawer"
-         x-transition:enter="transition-transform duration-200 ease-out"
-         x-transition:enter-start="translate-x-full"
-         x-transition:enter-end="translate-x-0"
-         x-transition:leave="transition-transform duration-150 ease-in"
-         x-transition:leave-start="translate-x-0"
-         x-transition:leave-end="translate-x-full"
-         class="fixed right-0 top-0 bottom-0 w-[280px] bg-[#1a1715] border-l border-white/[0.12] z-50 flex flex-col shadow-2xl">
-        @if($drawerMember)
+    <div class="fixed right-0 top-0 bottom-0 w-[280px] bg-[#1a1715] border-l border-white/[0.12] z-50 flex flex-col shadow-2xl">
             <div class="flex items-center justify-between px-5 py-4 border-b border-white/[0.08]">
                 <span class="text-sm font-semibold">Member settings</span>
                 <button wire:click="$set('permDrawerUserId', null)" class="text-white/20 hover:text-white/60 transition-colors">
@@ -588,8 +572,8 @@
                     Remove from room
                 </button>
             </div>
-        @endif
     </div>
+    @endif
 
     {{-- ── Add songs modal ─────────────────────────────────────────── --}}
     @if($showAddModal)
@@ -852,6 +836,8 @@
 
         // ── Drag to reorder queue ─────────────────────────────────────
         function initSortable() {
+            if (typeof Sortable === 'undefined') return;
+
             const list = document.getElementById('queue-list');
             if (!list) return;
             if (list._sortable) {
@@ -882,8 +868,21 @@
                 headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}'},
                 body: JSON.stringify(data),
             })
-                .then(r => r.json())
+                .then(async response => {
+                    const payload = await response.json().catch(() => ({}));
+                    if (!response.ok || payload.ok === false) {
+                        const message = payload.error === 'no_device'
+                            ? 'No active Spotify device. Open Spotify on any device and try again.'
+                            : (payload.message || 'Spotify could not start playback.');
+
+                        window.dispatchEvent(new CustomEvent('notify', { detail: { message } }));
+                        return null;
+                    }
+
+                    return payload;
+                })
                 .then(r => {
+                    if (!r) return;
                     const el = document.getElementById('latency-display');
                     if (el) el.textContent = '±' + r.latency_ms + 'ms';
                     console.log('Synced, latency:', r.latency_ms + 'ms');

@@ -2,7 +2,30 @@
   "permissions": {
     "allow": [
       "PowerShell(New-Item *)",
-      "Bash(php artisan *)"
+      "Bash(php artisan *)",
+      "PowerShell(Select-String -Path \"C:\\\\Users\\\\Florian\\\\Herd\\\\Tuneroom\\\\vendor\\\\filament\\\\filament\\\\src\\\\Resources\\\\Resource.php\" -Pattern \"^use \" | Select-Object -First 20 | ForEach-Object { $_.Line })",
+      "PowerShell(Select-String -Path \"C:\\\\Users\\\\Florian\\\\Herd\\\\Tuneroom\\\\vendor\\\\filament\\\\filament\\\\src\\\\Resources\\\\Resource.php\" -Pattern \"StatsOverview|ChartWidget|TableWidget|RelationManager\" | Select-Object -First 5 | ForEach-Object { $_.Line })",
+      "PowerShell(cmd /c \"dir C:\\\\Users\\\\Florian\\\\Herd\\\\Tuneroom\\\\vendor\\\\filament\\\\filament\\\\src /B\")",
+      "PowerShell(cmd /c \"dir C:\\\\Users\\\\Florian\\\\Herd\\\\Tuneroom\\\\vendor\\\\filament\\\\filament\\\\src\\\\Widgets /B\")",
+      "PowerShell(cmd /c \"dir C:\\\\Users\\\\Florian\\\\Herd\\\\Tuneroom\\\\vendor\\\\filament /B\")",
+      "PowerShell(cmd /c \"dir C:\\\\Users\\\\Florian\\\\Herd\\\\Tuneroom\\\\vendor\\\\filament\\\\widgets\\\\src /B\")",
+      "PowerShell(cmd /c \"dir C:\\\\Users\\\\Florian\\\\Herd\\\\Tuneroom\\\\vendor\\\\filament\\\\schemas\\\\src /B\")",
+      "PowerShell(Select-String -Path \"C:\\\\Users\\\\Florian\\\\Herd\\\\Tuneroom\\\\vendor\\\\filament\\\\widgets\\\\src\\\\StatsOverviewWidget.php\" -Pattern \"^use |function getStats|class Stat\" | ForEach-Object { $_.Line } | Select-Object -First 15)",
+      "PowerShell(Select-String -Path \"C:\\\\Users\\\\Florian\\\\Herd\\\\Tuneroom\\\\vendor\\\\filament\\\\widgets\\\\src\\\\LineChartWidget.php\" -Pattern \"^use |function getData|class Line\" | ForEach-Object { $_.Line } | Select-Object -First 10)",
+      "PowerShell(Select-String -Path \"C:\\\\Users\\\\Florian\\\\Herd\\\\Tuneroom\\\\vendor\\\\filament\\\\widgets\\\\src\\\\TableWidget.php\" -Pattern \"^use |function table|class Table\" | ForEach-Object { $_.Line } | Select-Object -First 10)",
+      "PowerShell(Select-String -Path \"C:\\\\Users\\\\Florian\\\\Herd\\\\Tuneroom\\\\vendor\\\\filament\\\\widgets\\\\src\\\\ChartWidget.php\" -Pattern \"^use |function getData|protected function\" | ForEach-Object { $_.Line } | Select-Object -First 15)",
+      "PowerShell(Select-String -Path \"C:\\\\Users\\\\Florian\\\\Herd\\\\Tuneroom\\\\vendor\\\\filament\\\\filament\\\\src\\\\Resources\\\\Resource.php\" -Pattern \"function form|function table\" | ForEach-Object { $_.Line })",
+      "PowerShell(Select-String -Path \"C:\\\\Users\\\\Florian\\\\Herd\\\\Tuneroom\\\\vendor\\\\filament\\\\schemas\\\\src\\\\Schema.php\" -Pattern \"function schema|function components|function make\" | ForEach-Object { $_.Line } | Select-Object -First 10)",
+      "PowerShell(Select-String -Path \"C:\\\\Users\\\\Florian\\\\Herd\\\\Tuneroom\\\\vendor\\\\filament\\\\schemas\\\\src\\\\Schema.php\" -Pattern \"public function \" | ForEach-Object { $_.Line } | Select-Object -First 20)",
+      "PowerShell(cmd /c \"dir C:\\\\Users\\\\Florian\\\\Herd\\\\Tuneroom\\\\vendor\\\\filament\\\\schemas\\\\src\\\\Concerns /B\")",
+      "PowerShell(Select-String -Path \"C:\\\\Users\\\\Florian\\\\Herd\\\\Tuneroom\\\\vendor\\\\filament\\\\schemas\\\\src\\\\Concerns\\\\HasComponents.php\" -Pattern \"public function components|public function schema\" | ForEach-Object { $_.Line } | Select-Object -First 5)",
+      "PowerShell(Select-String -Path \"C:\\\\Users\\\\Florian\\\\Herd\\\\Tuneroom\\\\vendor\\\\filament\\\\widgets\\\\src\\\\ChartWidget.php\" -Pattern \"heading|sort\" | ForEach-Object { $_.Line } | Select-Object -First 10)",
+      "PowerShell(Select-String -Path \"C:\\\\Users\\\\Florian\\\\Herd\\\\Tuneroom\\\\vendor\\\\filament\\\\widgets\\\\src\\\\Widget.php\" -Pattern \"heading|sort\" | ForEach-Object { $_.Line } | Select-Object -First 10)",
+      "PowerShell(Select-String -Path \"C:\\\\Users\\\\Florian\\\\Herd\\\\Tuneroom\\\\vendor\\\\filament\\\\widgets\\\\src\\\\TableWidget.php\" -Pattern \"heading\" | ForEach-Object { $_.Line } | Select-Object -First 5)",
+      "Bash(Get-Content .env)",
+      "Bash(Select-String -Pattern \"REVERB|VITE_REVERB|BROADCAST\")",
+      "PowerShell(icacls \"C:\\\\Users\\\\Florian\\\\Herd\\\\Tuneroom\\\\storage\" /grant \"Everyone:\\(OI\\)\\(CI\\)F\" /T 2>&1 | Select-Object -Last 5)",
+      "PowerShell(Head 10 *)"
     ]
   }
 }
